@@ -1,0 +1,9 @@
+{
+  "enabled": true,
+  "minIntervalSeconds": 420,
+  "maxPerHour": 6,
+  "messages": [
+    "Enjoying the show? Hit Follow \u2764",
+    "Use !uptime, !discord, !specs"
+  ]
+}

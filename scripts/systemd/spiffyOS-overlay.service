@@ -1,0 +1,12 @@
+[Unit]
+Description=SpiffyOS Overlay Web
+After=network.target
+
+[Service]
+User=spiffybot
+WorkingDirectory=/opt/spiffyOS/overlay
+ExecStart=/usr/bin/dotnet SpiffyOS.Overlay.dll
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

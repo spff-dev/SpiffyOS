@@ -1,0 +1,33 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31912.275
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpiffyOS.Core", "src\SpiffyOS.Core\SpiffyOS.Core.csproj", "{CED8E2AE-023D-48A0-9211-1767A7DDD200}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpiffyOS.Bot", "src\SpiffyOS.Bot\SpiffyOS.Bot.csproj", "{A2BADC51-1C6A-4EBD-BF1C-AE9655F43955}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpiffyOS.Overlay", "src\SpiffyOS.Overlay\SpiffyOS.Overlay.csproj", "{48705937-A876-4994-949E-631245EF6F05}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CED8E2AE-023D-48A0-9211-1767A7DDD200}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CED8E2AE-023D-48A0-9211-1767A7DDD200}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CED8E2AE-023D-48A0-9211-1767A7DDD200}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CED8E2AE-023D-48A0-9211-1767A7DDD200}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A2BADC51-1C6A-4EBD-BF1C-AE9655F43955}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A2BADC51-1C6A-4EBD-BF1C-AE9655F43955}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A2BADC51-1C6A-4EBD-BF1C-AE9655F43955}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A2BADC51-1C6A-4EBD-BF1C-AE9655F43955}.Release|Any CPU.Build.0 = Release|Any CPU
+		{48705937-A876-4994-949E-631245EF6F05}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{48705937-A876-4994-949E-631245EF6F05}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{48705937-A876-4994-949E-631245EF6F05}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{48705937-A876-4994-949E-631245EF6F05}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

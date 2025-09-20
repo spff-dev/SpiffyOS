@@ -1,0 +1,21 @@
+# dotnet build artifacts
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+.vs/
+.vscode/
+
+# local outputs
+publish/
+logs/
+
+# secrets & local env
+secrets/
+.env
+
+# OS junk
+Thumbs.db
+Desktop.ini
+.DS_Store

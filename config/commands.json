@@ -1,0 +1,41 @@
+{
+  "prefix": "!",
+  "commands": [
+    {
+      "name": "discord",
+      "type": "static",
+      "aliases": ["dc", "voicechat"],
+      "permission": "everyone",
+      "globalCooldown": 5,
+      "userCooldown": 10,
+      "globalUsage": 0,
+      "userUsage": 0,
+      "replyToUser": false,
+      "data": { "text": "Join the Discord → https://discord.gg/spiff" }
+    },
+    {
+      "name": "specs",
+      "type": "static",
+      "aliases": [],
+      "permission": "everyone",
+      "globalCooldown": 5,
+      "userCooldown": 10,
+      "globalUsage": 0,
+      "userUsage": 0,
+      "replyToUser": false,
+      "data": { "text": "7800X3D / 64GB / 4090 — ask away" }
+    },
+    {
+      "name": "uptime",
+      "type": "dynamic",
+      "aliases": [],
+      "permission": "everyone",
+      "globalCooldown": 10,
+      "userCooldown": 30,
+      "globalUsage": 0,
+      "userUsage": 0,
+      "replyToUser": true,
+      "data": {}
+    }
+  ]
+}
