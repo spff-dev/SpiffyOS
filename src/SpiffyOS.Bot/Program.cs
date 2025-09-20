@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using SpiffyOS.Core;
 using SpiffyOS.Core.Commands;
+using SpiffyOS.Core.Events;
 using System.Text.Json;
 using Serilog;
 
@@ -18,7 +19,7 @@ Directory.CreateDirectory(logsDir);
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
-    .WriteTo.Console(outputTemplate: "{Timestamp:HH:mm:ss} {Level:u3} {SourceContext}: {Message:lj}{NewLine}{Exception}")
+    .WriteTo.Console(outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
     .WriteTo.File(Path.Combine(logsDir, "bot-.log"),
                   rollingInterval: RollingInterval.Day,
                   retainedFileCountLimit: 30,
@@ -29,8 +30,8 @@ var host = Host.CreateDefaultBuilder(args)
     .UseSerilog()
     .ConfigureAppConfiguration((ctx, cfg) =>
     {
-        // Switch to commands.json (not commands.static.json)
         cfg.AddJsonFile(Path.Combine(configDir, "commands.json"), optional: true, reloadOnChange: true);
+        cfg.AddJsonFile(Path.Combine(configDir, "events.json"), optional: true, reloadOnChange: true);
         cfg.AddJsonFile(Path.Combine(configDir, "announcements.json"), optional: true, reloadOnChange: true);
     })
     .ConfigureServices((ctx, services) =>
@@ -72,7 +73,7 @@ var host = Host.CreateDefaultBuilder(args)
             sp.GetRequiredService<AppTokenProvider>()
         ));
 
-        // Command router (reads from SPIFFYOS_CONFIG/commands.json)
+        // Commands
         services.AddSingleton(sp => new CommandRouter(
             sp.GetRequiredService<HelixApi>(),
             sp.GetRequiredService<ILogger<CommandRouter>>(),
@@ -80,9 +81,17 @@ var host = Host.CreateDefaultBuilder(args)
             configDir
         ));
 
+        // Events (follows now; other topics later)
+        services.AddSingleton(sp => new EventsConfigProvider(configDir));
+        services.AddSingleton(sp => new EventsAnnouncer(
+            sp.GetRequiredService<HelixApi>(),
+            sp.GetRequiredService<ILogger<EventsAnnouncer>>(),
+            sp.GetRequiredService<EventsConfigProvider>(),
+            cfg["Twitch:BroadcasterId"]!, cfg["Twitch:BotUserId"]!
+        ));
+
         services.AddHostedService<BotService>();
 
-        // Visible path log on boot
         services.AddSingleton(new BootDirs(configDir, tokensDir, logsDir));
     })
     .Build();
@@ -103,14 +112,16 @@ public sealed class BotService : BackgroundService
     private readonly IConfiguration _cfg;
     private readonly EventSubWebSocket _es;
     private readonly CommandRouter _router;
+    private readonly EventsAnnouncer _events;
     private readonly BootDirs _dirs;
 
     private string BroadcasterId => _cfg["Twitch:BroadcasterId"]!;
     private string BotUserId => _cfg["Twitch:BotUserId"]!;
     private string ModeratorId => _cfg["Twitch:ModeratorUserId"] ?? BroadcasterId;
 
-    public BotService(ILogger<BotService> log, IConfiguration cfg, EventSubWebSocket es, CommandRouter router, BootDirs dirs)
-    { _log = log; _cfg = cfg; _es = es; _router = router; _dirs = dirs; }
+    public BotService(ILogger<BotService> log, IConfiguration cfg,
+                      EventSubWebSocket es, CommandRouter router, EventsAnnouncer events, BootDirs dirs)
+    { _log = log; _cfg = cfg; _es = es; _router = router; _events = events; _dirs = dirs; }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -120,11 +131,19 @@ public sealed class BotService : BackgroundService
         {
             await _es.ConnectAsync(stoppingToken);
             await _es.EnsureSubscriptionsAsync(BroadcasterId, ModeratorId, BotUserId, stoppingToken);
+
             _es.ChatMessageReceived += async msg =>
             {
                 try { await _router.HandleAsync(msg, stoppingToken); }
                 catch (Exception ex) { _log.LogError(ex, "Command router error"); }
             };
+
+            _es.FollowReceived += async ev =>
+            {
+                try { await _events.HandleFollowAsync(ev, stoppingToken); }
+                catch (Exception ex) { _log.LogError(ex, "Follow announce error"); }
+            };
+
             _log.LogInformation("EventSub connected and subscriptions created.");
         }
         catch (Exception ex)

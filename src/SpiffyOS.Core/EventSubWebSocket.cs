@@ -28,6 +28,7 @@ public sealed class EventSubWebSocket : IAsyncDisposable
     }
 
     public event Action<ChatMessage>? ChatMessageReceived;
+    public event Action<FollowEvent>? FollowReceived;
 
     public async Task ConnectAsync(CancellationToken ct)
     {
@@ -39,6 +40,10 @@ public sealed class EventSubWebSocket : IAsyncDisposable
         _rxTask = Task.Run(() => ReceiveLoop(_rxCts.Token));
     }
 
+    /// <summary>
+    /// For follows (v2), the bot must be a moderator. We use:
+    ///   condition = { broadcaster_user_id: <channel>, moderator_user_id: <bot> }
+    /// </summary>
     public async Task EnsureSubscriptionsAsync(string broadcasterId, string moderatorId, string userId, CancellationToken ct)
     {
         // Wait up to ~10s for session_welcome to arrive (sets _sessionId)
@@ -49,8 +54,15 @@ public sealed class EventSubWebSocket : IAsyncDisposable
         if (_sessionId is null)
             throw new InvalidOperationException("No EventSub session id (no session_welcome received).");
 
+        // Chat messages (bot identity for classification)
         await CreateSub("channel.chat.message", "1",
             new { broadcaster_user_id = broadcasterId, user_id = userId }, ct);
+
+        // Follows (v2) — require moderator id
+        await CreateSub("channel.follow", "2",
+            new { broadcaster_user_id = broadcasterId, moderator_user_id = moderatorId }, ct);
+
+        // We’ll add subs/bits/raids/redemptions later.
     }
 
     private async Task CreateSub(string type, string version, object condition, CancellationToken ct)
@@ -154,7 +166,7 @@ public sealed class EventSubWebSocket : IAsyncDisposable
                             var broadId = ev.GetProperty("broadcaster_user_id").GetString() ?? "";
                             var chatterId = ev.GetProperty("chatter_user_id").GetString() ?? "";
 
-                            // NEW: usernames/logins (best-effort)
+                            // usernames/logins
                             string chatterLogin = "";
                             string chatterName = "";
                             try { chatterLogin = ev.GetProperty("chatter_user_login").GetString() ?? ""; } catch { }
@@ -172,6 +184,17 @@ public sealed class EventSubWebSocket : IAsyncDisposable
                                 msgId,
                                 isBroadcaster, isMod, isVip, isSub
                             ));
+                        }
+                        else if (subType == "channel.follow")
+                        {
+                            var ev = payload.GetProperty("event");
+                            var broadId = ev.GetProperty("broadcaster_user_id").GetString() ?? "";
+                            var userId = ev.GetProperty("user_id").GetString() ?? "";
+                            string userLogin = "", userName = "";
+                            try { userLogin = ev.GetProperty("user_login").GetString() ?? ""; } catch { }
+                            try { userName = ev.GetProperty("user_name").GetString() ?? ""; } catch { }
+
+                            FollowReceived?.Invoke(new FollowEvent(broadId, userId, userLogin, userName));
                         }
                     }
                 }
@@ -227,5 +250,12 @@ public sealed class EventSubWebSocket : IAsyncDisposable
         bool IsModerator,
         bool IsVIP,
         bool IsSubscriber
+    );
+
+    public record FollowEvent(
+        string BroadcasterUserId,
+        string UserId,
+        string UserLogin,
+        string UserName
     );
 }
