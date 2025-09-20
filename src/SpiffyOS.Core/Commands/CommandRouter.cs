@@ -137,7 +137,8 @@ public sealed class CommandRouter
             else if (_aliasToName.TryGetValue(token, out var canon)) name = canon;
             else
             {
-                _log.LogDebug("Unknown command token '{Token}' from {User}", token, msg.ChatterUserId);
+                _log.LogDebug("Unknown command token '{Token}' from {UserName} ({UserId})",
+                    token, UserNameOrLogin(msg), msg.ChatterUserId);
                 return;
             }
             def = _byName[name];
@@ -148,8 +149,11 @@ public sealed class CommandRouter
         // Permission check
         if (!HasPermission(def, msg))
         {
-            _log.LogInformation("Command '{Name}' denied: permission '{Perm}'. User={User} Roles=[b:{B} m:{M} v:{V} s:{S}]",
-                name, def.Permission, msg.ChatterUserId, msg.IsBroadcaster, msg.IsModerator, msg.IsVIP, msg.IsSubscriber);
+            _log.LogInformation(
+                "Command '{Name}' denied: permission '{Perm}'. User={UserName} ({UserId}) Roles=[b:{B} m:{M} v:{V} s:{S}]",
+                name, def.Permission, UserNameOrLogin(msg), msg.ChatterUserId,
+                msg.IsBroadcaster, msg.IsModerator, msg.IsVIP, msg.IsSubscriber
+            );
             return;
         }
 
@@ -158,12 +162,14 @@ public sealed class CommandRouter
         // Cooldowns / usage
         if (!AllowByCooldowns(def, name, msg.ChatterUserId))
         {
-            _log.LogInformation("Command '{Name}' throttled by cooldown. User={User}", name, msg.ChatterUserId);
+            _log.LogInformation("Command '{Name}' throttled by cooldown. User={UserName} ({UserId})",
+                name, UserNameOrLogin(msg), msg.ChatterUserId);
             return;
         }
         if (!AllowByUsage(def, name, msg.ChatterUserId))
         {
-            _log.LogInformation("Command '{Name}' blocked by usage limits. User={User}", name, msg.ChatterUserId);
+            _log.LogInformation("Command '{Name}' blocked by usage limits. User={UserName} ({UserId})",
+                name, UserNameOrLogin(msg), msg.ChatterUserId);
             return;
         }
 
@@ -187,15 +193,21 @@ public sealed class CommandRouter
             TouchUsage(def, name, msg.ChatterUserId);
 
             _log.LogInformation(
-                "Command '{Name}' sent. AliasToken='{Token}', User={User}, ReplyThreaded={Reply}, TextPreview=\"{Preview}\"",
-                name, token, msg.ChatterUserId, replyId is not null, Preview(text!, 96)
+                "Command '{Name}' sent. AliasToken='{Token}', User={UserName} ({UserId}), ReplyThreaded={Reply}, TextPreview=\"{Preview}\"",
+                name, token, UserNameOrLogin(msg), msg.ChatterUserId, replyId is not null, Preview(text!, 96)
             );
         }
         else
         {
-            _log.LogDebug("Command '{Name}' produced no output. User={User}", name, msg.ChatterUserId);
+            _log.LogDebug("Command '{Name}' produced no output. User={UserName} ({UserId})",
+                name, UserNameOrLogin(msg), msg.ChatterUserId);
         }
     }
+
+    private static string UserNameOrLogin(EventSubWebSocket.ChatMessage msg)
+        => !string.IsNullOrWhiteSpace(msg.ChatterUserName)
+            ? msg.ChatterUserName
+            : (!string.IsNullOrWhiteSpace(msg.ChatterUserLogin) ? msg.ChatterUserLogin : "(unknown)");
 
     private static string Preview(string s, int max)
         => s.Length <= max ? s : s.Substring(0, max) + "…";
@@ -213,10 +225,10 @@ public sealed class CommandRouter
         var p = CommandPermissionParser.Parse(def.Permission);
         return p switch
         {
-            CommandPermission.Everyone    => true,
-            CommandPermission.Subscriber  => msg.IsSubscriber || msg.IsVIP || msg.IsModerator || msg.IsBroadcaster,
-            CommandPermission.VIP         => msg.IsVIP || msg.IsModerator || msg.IsBroadcaster,
-            CommandPermission.Mod         => msg.IsModerator || msg.IsBroadcaster,
+            CommandPermission.Everyone => true,
+            CommandPermission.Subscriber => msg.IsSubscriber || msg.IsVIP || msg.IsModerator || msg.IsBroadcaster,
+            CommandPermission.VIP => msg.IsVIP || msg.IsModerator || msg.IsBroadcaster,
+            CommandPermission.Mod => msg.IsModerator || msg.IsBroadcaster,
             CommandPermission.Broadcaster => msg.IsBroadcaster,
             _ => true
         };

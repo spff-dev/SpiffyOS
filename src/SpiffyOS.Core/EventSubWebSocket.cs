@@ -51,8 +51,6 @@ public sealed class EventSubWebSocket : IAsyncDisposable
 
         await CreateSub("channel.chat.message", "1",
             new { broadcaster_user_id = broadcasterId, user_id = userId }, ct);
-
-        // Re-enable other subs later, one by one.
     }
 
     private async Task CreateSub(string type, string version, object condition, CancellationToken ct)
@@ -124,7 +122,7 @@ public sealed class EventSubWebSocket : IAsyncDisposable
                             try { text = ev.GetProperty("message").GetProperty("text").GetString() ?? ""; }
                             catch (Exception ex) { Console.WriteLine($"Parse error reading event.message.text: {ex.Message}"); }
 
-                            // MessageId (try both shapes)
+                            // Message IDs
                             string? msgId = null;
                             try { msgId = ev.GetProperty("message_id").GetString(); } catch { }
                             if (string.IsNullOrEmpty(msgId))
@@ -132,7 +130,7 @@ public sealed class EventSubWebSocket : IAsyncDisposable
                                 try { msgId = ev.GetProperty("message").GetProperty("id").GetString(); } catch { }
                             }
 
-                            // Roles from badges
+                            // Roles via badges
                             bool isBroadcaster = false, isMod = false, isVip = false, isSub = false;
                             try
                             {
@@ -156,11 +154,22 @@ public sealed class EventSubWebSocket : IAsyncDisposable
                             var broadId = ev.GetProperty("broadcaster_user_id").GetString() ?? "";
                             var chatterId = ev.GetProperty("chatter_user_id").GetString() ?? "";
 
+                            // NEW: usernames/logins (best-effort)
+                            string chatterLogin = "";
+                            string chatterName = "";
+                            try { chatterLogin = ev.GetProperty("chatter_user_login").GetString() ?? ""; } catch { }
+                            try { chatterName = ev.GetProperty("chatter_user_name").GetString() ?? ""; } catch { }
+
                             if (!string.IsNullOrWhiteSpace(text))
                                 Console.WriteLine($"Chat msg -> {text}");
 
                             ChatMessageReceived?.Invoke(new ChatMessage(
-                                broadId, chatterId, text, msgId,
+                                broadId,
+                                chatterId,
+                                chatterLogin,
+                                chatterName,
+                                text,
+                                msgId,
                                 isBroadcaster, isMod, isVip, isSub
                             ));
                         }
@@ -210,6 +219,8 @@ public sealed class EventSubWebSocket : IAsyncDisposable
     public record ChatMessage(
         string BroadcasterUserId,
         string ChatterUserId,
+        string ChatterUserLogin,
+        string ChatterUserName,
         string Text,
         string? MessageId,
         bool IsBroadcaster,
