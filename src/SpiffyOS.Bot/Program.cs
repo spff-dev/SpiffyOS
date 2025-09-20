@@ -75,6 +75,7 @@ var host = Host.CreateDefaultBuilder(args)
         // Command router (reads from SPIFFYOS_CONFIG/commands.json)
         services.AddSingleton(sp => new CommandRouter(
             sp.GetRequiredService<HelixApi>(),
+            sp.GetRequiredService<ILogger<CommandRouter>>(),
             cfg["Twitch:BroadcasterId"]!, cfg["Twitch:BotUserId"]!,
             configDir
         ));

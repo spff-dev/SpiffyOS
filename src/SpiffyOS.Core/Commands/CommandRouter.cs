@@ -1,10 +1,12 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
 namespace SpiffyOS.Core.Commands;
 
 public sealed class CommandRouter
 {
     private readonly SpiffyOS.Core.HelixApi _helix;
+    private readonly ILogger<CommandRouter> _log;
     private readonly string _broadcasterId;
     private readonly string _botUserId;
     private readonly string _configPath;
@@ -15,19 +17,25 @@ public sealed class CommandRouter
     private Dictionary<string, string> _aliasToName = new(StringComparer.OrdinalIgnoreCase);
 
     // cooldowns/usages (per-stream)
-    private readonly Dictionary<string, DateTime> _nextGlobal = new();                            // cmd -> time
-    private readonly Dictionary<(string cmd, string user), DateTime> _nextUser = new();           // (cmd,user) -> time
-    private readonly Dictionary<string, int> _globalUsage = new();                                // cmd -> count
-    private readonly Dictionary<(string cmd, string user), int> _userUsage = new();               // (cmd,user) -> count
+    private readonly Dictionary<string, DateTime> _nextGlobal = new();                  // cmd -> time
+    private readonly Dictionary<(string cmd, string user), DateTime> _nextUser = new(); // (cmd,user) -> time
+    private readonly Dictionary<string, int> _globalUsage = new();                      // cmd -> count
+    private readonly Dictionary<(string cmd, string user), int> _userUsage = new();     // (cmd,user) -> count
     private string? _currentStreamId;
     private DateTime _lastStreamCheck = DateTime.MinValue;
 
     private readonly StaticCommandHandler _static = new();
     private readonly UptimeCommandHandler _uptime = new();
 
-    public CommandRouter(SpiffyOS.Core.HelixApi helix, string broadcasterId, string botUserId, string configDir)
+    public CommandRouter(
+        SpiffyOS.Core.HelixApi helix,
+        ILogger<CommandRouter> log,
+        string broadcasterId,
+        string botUserId,
+        string configDir)
     {
         _helix = helix;
+        _log = log;
         _broadcasterId = broadcasterId;
         _botUserId = botUserId;
         _configPath = Path.Combine(configDir, "commands.json");
@@ -41,13 +49,21 @@ public sealed class CommandRouter
         {
             if (!File.Exists(_configPath))
             {
-                _cfg = new CommandFile();
-                _byName.Clear();
-                _aliasToName.Clear();
+                lock (_lock)
+                {
+                    _cfg = new CommandFile();
+                    _byName.Clear();
+                    _aliasToName.Clear();
+                }
+                _log.LogWarning("CommandRouter: no config found at {Path}", _configPath);
                 return;
             }
+
             var json = File.ReadAllText(_configPath);
-            var cfg = JsonSerializer.Deserialize<CommandFile>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new CommandFile();
+            var cfg = JsonSerializer.Deserialize<CommandFile>(
+                json,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+            ) ?? new CommandFile();
 
             var byName = new Dictionary<string, CommandDef>(StringComparer.OrdinalIgnoreCase);
             var aliasTo = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -57,7 +73,7 @@ public sealed class CommandRouter
                 if (string.IsNullOrWhiteSpace(c.Name)) continue;
                 byName[c.Name] = c;
                 foreach (var a in c.Aliases ?? new())
-                    aliasTo[a] = c.Name;
+                    if (!string.IsNullOrWhiteSpace(a)) aliasTo[a] = c.Name;
             }
 
             lock (_lock)
@@ -65,15 +81,15 @@ public sealed class CommandRouter
                 _cfg = cfg;
                 _byName = byName;
                 _aliasToName = aliasTo;
-                // Reset cooldowns for safety on config change
                 _nextGlobal.Clear(); _nextUser.Clear(); _globalUsage.Clear(); _userUsage.Clear();
             }
 
-            Console.WriteLine($"CommandRouter loaded {_byName.Count} commands (prefix '{_cfg.Prefix}') from {_configPath}");
+            _log.LogInformation("CommandRouter loaded {Count} commands (prefix '{Prefix}') from {Path}",
+                _byName.Count, _cfg.Prefix, _configPath);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"CommandRouter config load error: {ex.Message}");
+            _log.LogError(ex, "CommandRouter config load error from {Path}", _configPath);
         }
     }
 
@@ -92,48 +108,64 @@ public sealed class CommandRouter
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"CommandRouter watcher error: {ex.Message}");
+            _log.LogWarning(ex, "CommandRouter watcher error for {Dir}", dir);
         }
     }
 
     public async Task HandleAsync(EventSubWebSocket.ChatMessage msg, CancellationToken ct)
     {
-        CommandDef? def;
-        string args = "";
         string prefix;
-
         lock (_lock) { prefix = _cfg.Prefix; }
 
-        if (string.IsNullOrWhiteSpace(msg.Text) || !msg.Text.StartsWith(prefix)) return;
+        if (string.IsNullOrWhiteSpace(msg.Text) || !msg.Text.StartsWith(prefix))
+            return;
 
         var body = msg.Text[prefix.Length..].Trim();
         if (string.IsNullOrEmpty(body)) return;
 
         var parts = body.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         var token = parts[0];
-        args = parts.Length > 1 ? parts[1] : "";
+        var args = parts.Length > 1 ? parts[1] : "";
 
-        // Resolve to canonical name via aliases
+        // Resolve canonical name via aliases
+        CommandDef? def;
         string name;
+
         lock (_lock)
         {
             if (_byName.ContainsKey(token)) name = token;
             else if (_aliasToName.TryGetValue(token, out var canon)) name = canon;
-            else return; // unknown command
+            else
+            {
+                _log.LogDebug("Unknown command token '{Token}' from {User}", token, msg.ChatterUserId);
+                return;
+            }
             def = _byName[name];
         }
 
         if (def is null) return;
 
-        // Access check
-        if (!HasPermission(def, msg)) { Console.WriteLine($"Permission denied for {token}"); return; }
+        // Permission check
+        if (!HasPermission(def, msg))
+        {
+            _log.LogInformation("Command '{Name}' denied: permission '{Perm}'. User={User} Roles=[b:{B} m:{M} v:{V} s:{S}]",
+                name, def.Permission, msg.ChatterUserId, msg.IsBroadcaster, msg.IsModerator, msg.IsVIP, msg.IsSubscriber);
+            return;
+        }
 
-        // Per-stream usage accounting (refresh stream id occasionally)
         await EnsureStreamContext(ct);
 
-        // Cooldowns & usage checks
-        if (!AllowByCooldowns(def, name, msg.ChatterUserId)) { Console.WriteLine($"Cooldown active for {name}"); return; }
-        if (!AllowByUsage(def, name, msg.ChatterUserId)) { Console.WriteLine($"Usage limit reached for {name}"); return; }
+        // Cooldowns / usage
+        if (!AllowByCooldowns(def, name, msg.ChatterUserId))
+        {
+            _log.LogInformation("Command '{Name}' throttled by cooldown. User={User}", name, msg.ChatterUserId);
+            return;
+        }
+        if (!AllowByUsage(def, name, msg.ChatterUserId))
+        {
+            _log.LogInformation("Command '{Name}' blocked by usage limits. User={User}", name, msg.ChatterUserId);
+            return;
+        }
 
         // Execute
         string? text = null;
@@ -141,9 +173,10 @@ public sealed class CommandRouter
             text = await _static.ExecuteAsync(BuildCtx(msg), def, args, ct);
         else if (def.Type.Equals("dynamic", StringComparison.OrdinalIgnoreCase))
         {
-            // Only 'uptime' implemented for now
             if (def.Name.Equals("uptime", StringComparison.OrdinalIgnoreCase))
                 text = await _uptime.ExecuteAsync(BuildCtx(msg), def, args, ct);
+            else
+                _log.LogDebug("No dynamic handler implemented for '{Name}'", def.Name);
         }
 
         if (!string.IsNullOrWhiteSpace(text))
@@ -152,9 +185,20 @@ public sealed class CommandRouter
             await _helix.SendChatMessageWithAppAsync(_broadcasterId, _botUserId, text!, ct, replyId);
             TouchCooldowns(def, name, msg.ChatterUserId);
             TouchUsage(def, name, msg.ChatterUserId);
-            Console.WriteLine($"Command '{name}' sent.");
+
+            _log.LogInformation(
+                "Command '{Name}' sent. AliasToken='{Token}', User={User}, ReplyThreaded={Reply}, TextPreview=\"{Preview}\"",
+                name, token, msg.ChatterUserId, replyId is not null, Preview(text!, 96)
+            );
+        }
+        else
+        {
+            _log.LogDebug("Command '{Name}' produced no output. User={User}", name, msg.ChatterUserId);
         }
     }
+
+    private static string Preview(string s, int max)
+        => s.Length <= max ? s : s.Substring(0, max) + "…";
 
     private CommandContext BuildCtx(EventSubWebSocket.ChatMessage msg) => new()
     {
@@ -167,13 +211,12 @@ public sealed class CommandRouter
     private bool HasPermission(CommandDef def, EventSubWebSocket.ChatMessage msg)
     {
         var p = CommandPermissionParser.Parse(def.Permission);
-
         return p switch
         {
-            CommandPermission.Everyone => true,
-            CommandPermission.Subscriber => msg.IsSubscriber || msg.IsVIP || msg.IsModerator || msg.IsBroadcaster,
-            CommandPermission.VIP => msg.IsVIP || msg.IsModerator || msg.IsBroadcaster,
-            CommandPermission.Mod => msg.IsModerator || msg.IsBroadcaster,
+            CommandPermission.Everyone    => true,
+            CommandPermission.Subscriber  => msg.IsSubscriber || msg.IsVIP || msg.IsModerator || msg.IsBroadcaster,
+            CommandPermission.VIP         => msg.IsVIP || msg.IsModerator || msg.IsBroadcaster,
+            CommandPermission.Mod         => msg.IsModerator || msg.IsBroadcaster,
             CommandPermission.Broadcaster => msg.IsBroadcaster,
             _ => true
         };
@@ -190,9 +233,10 @@ public sealed class CommandRouter
         if (!string.Equals(id, _currentStreamId, StringComparison.Ordinal))
         {
             _currentStreamId = id;
-            // Reset per-stream usage counts
             _globalUsage.Clear();
             _userUsage.Clear();
+            _log.LogInformation("Stream context changed. NewStreamId={StreamId}. Per-stream usage counters reset.",
+                _currentStreamId ?? "(none)");
         }
     }
 
@@ -201,29 +245,18 @@ public sealed class CommandRouter
     private bool AllowByCooldowns(CommandDef def, string name, string userId)
     {
         var now = Now;
-
         if (def.GlobalCooldown > 0 &&
-            _nextGlobal.TryGetValue(name, out var next) &&
-            now < next)
-            return false;
-
+            _nextGlobal.TryGetValue(name, out var next) && now < next) return false;
         if (def.UserCooldown > 0 &&
-            _nextUser.TryGetValue((name, userId), out var nextU) &&
-            now < nextU)
-            return false;
-
+            _nextUser.TryGetValue((name, userId), out var nextU) && now < nextU) return false;
         return true;
     }
 
     private void TouchCooldowns(CommandDef def, string name, string userId)
     {
         var now = Now;
-
-        if (def.GlobalCooldown > 0)
-            _nextGlobal[name] = now.AddSeconds(def.GlobalCooldown);
-
-        if (def.UserCooldown > 0)
-            _nextUser[(name, userId)] = now.AddSeconds(def.UserCooldown);
+        if (def.GlobalCooldown > 0) _nextGlobal[name] = now.AddSeconds(def.GlobalCooldown);
+        if (def.UserCooldown > 0) _nextUser[(name, userId)] = now.AddSeconds(def.UserCooldown);
     }
 
     private bool AllowByUsage(CommandDef def, string name, string userId)
@@ -233,13 +266,11 @@ public sealed class CommandRouter
             _globalUsage.TryGetValue(name, out var c);
             if (c >= def.GlobalUsage) return false;
         }
-
         if (def.UserUsage > 0)
         {
             _userUsage.TryGetValue((name, userId), out var cu);
             if (cu >= def.UserUsage) return false;
         }
-
         return true;
     }
 

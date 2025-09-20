@@ -25,7 +25,7 @@ try
 
     var overlayToken = Environment.GetEnvironmentVariable("SPIFFYOS_OVERLAY_TOKEN");
 
-    builder.WebHost.ConfigureKestrel(o => o.ListenAnyIP(port));
+    builder.WebHost.ConfigureKestrel(o => o.ListenLocalhost(port));
     builder.Services.AddRouting();
     builder.Services.AddResponseCompression();
 
