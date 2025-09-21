@@ -39,7 +39,7 @@ var host = Host.CreateDefaultBuilder(args)
         var cfg = ctx.Configuration;
         services.AddHttpClient();
 
-        // App token provider (for Send Chat Message API + EventSub chat identity classification)
+        // App token (Send Chat Message + general helix app calls)
         services.AddSingleton(sp => new AppTokenProvider(
             sp.GetRequiredService<HttpClient>(),
             cfg["Twitch:ClientId"]!, cfg["Twitch:ClientSecret"]!
@@ -59,16 +59,26 @@ var host = Host.CreateDefaultBuilder(args)
             Path.Combine(tokensDir, "bot.json")
         )));
 
-        // Helix + EventSub
+        // Helix (broadcaster app + app-token for /chat/messages)
         services.AddSingleton(sp => new HelixApi(
             sp.GetRequiredService<HttpClient>(),
             sp.GetRequiredService<BroadcasterAuth>().Value,
             cfg["Twitch:ClientId"]!,
             sp.GetRequiredService<AppTokenProvider>()
         ));
+
+        // EventSub sockets:
+        //  - BOT socket: chat + follows
         services.AddSingleton(sp => new EventSubWebSocket(
             sp.GetRequiredService<HttpClient>(),
             sp.GetRequiredService<BotAuth>().Value,
+            cfg["Twitch:ClientId"]!,
+            sp.GetRequiredService<AppTokenProvider>()
+        ));
+        //  - BROADCASTER socket: subs + resub messages (and later: bits/raids/redemptions)
+        services.AddSingleton(sp => new EventSubWebSocket(
+            sp.GetRequiredService<HttpClient>(),
+            sp.GetRequiredService<BroadcasterAuth>().Value,
             cfg["Twitch:ClientId"]!,
             sp.GetRequiredService<AppTokenProvider>()
         ));
@@ -81,7 +91,7 @@ var host = Host.CreateDefaultBuilder(args)
             configDir
         ));
 
-        // Events (follows now; other topics later)
+        // Events
         services.AddSingleton(sp => new EventsConfigProvider(configDir));
         services.AddSingleton(sp => new EventsAnnouncer(
             sp.GetRequiredService<HelixApi>(),
@@ -106,11 +116,14 @@ public sealed class BootDirs
     public BootDirs(string c, string t, string l) { Config = c; Tokens = t; Logs = l; }
 }
 
+public sealed record BroadcasterAuth(TwitchAuth Value);
+public sealed record BotAuth(TwitchAuth Value);
+
 public sealed class BotService : BackgroundService
 {
     private readonly ILogger<BotService> _log;
     private readonly IConfiguration _cfg;
-    private readonly EventSubWebSocket _es;
+    private readonly IEnumerable<EventSubWebSocket> _sockets;
     private readonly CommandRouter _router;
     private readonly EventsAnnouncer _events;
     private readonly BootDirs _dirs;
@@ -120,8 +133,8 @@ public sealed class BotService : BackgroundService
     private string ModeratorId => _cfg["Twitch:ModeratorUserId"] ?? BroadcasterId;
 
     public BotService(ILogger<BotService> log, IConfiguration cfg,
-                      EventSubWebSocket es, CommandRouter router, EventsAnnouncer events, BootDirs dirs)
-    { _log = log; _cfg = cfg; _es = es; _router = router; _events = events; _dirs = dirs; }
+                      IEnumerable<EventSubWebSocket> sockets, CommandRouter router, EventsAnnouncer events, BootDirs dirs)
+    { _log = log; _cfg = cfg; _sockets = sockets; _router = router; _events = events; _dirs = dirs; }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -129,19 +142,39 @@ public sealed class BotService : BackgroundService
 
         try
         {
-            await _es.ConnectAsync(stoppingToken);
-            await _es.EnsureSubscriptionsAsync(BroadcasterId, ModeratorId, BotUserId, stoppingToken);
+            // sockets[0] => BOT; sockets[1] => BROADCASTER (registered in that order above)
+            var arr = _sockets.ToArray();
+            var botSock = arr[0];
+            var brdSock = arr[1];
 
-            _es.ChatMessageReceived += async msg =>
+            await botSock.ConnectAsync(stoppingToken);
+            await brdSock.ConnectAsync(stoppingToken);
+
+            await botSock.EnsureSubscriptionsBotAsync(BroadcasterId, ModeratorId, BotUserId, stoppingToken);
+            await brdSock.EnsureSubscriptionsBroadcasterAsync(BroadcasterId, stoppingToken);
+
+            botSock.ChatMessageReceived += async msg =>
             {
                 try { await _router.HandleAsync(msg, stoppingToken); }
                 catch (Exception ex) { _log.LogError(ex, "Command router error"); }
             };
 
-            _es.FollowReceived += async ev =>
+            botSock.FollowReceived += async ev =>
             {
                 try { await _events.HandleFollowAsync(ev, stoppingToken); }
                 catch (Exception ex) { _log.LogError(ex, "Follow announce error"); }
+            };
+
+            brdSock.SubscriptionReceived += async ev =>
+            {
+                try { await _events.HandleSubscribeAsync(ev, stoppingToken); }
+                catch (Exception ex) { _log.LogError(ex, "Sub announce error"); }
+            };
+
+            brdSock.SubscriptionMessageReceived += async ev =>
+            {
+                try { await _events.HandleSubscriptionMessageAsync(ev, stoppingToken); }
+                catch (Exception ex) { _log.LogError(ex, "Resub announce error"); }
             };
 
             _log.LogInformation("EventSub connected and subscriptions created.");
@@ -158,7 +191,3 @@ public sealed class BotService : BackgroundService
         }
     }
 }
-
-// ---- types must come AFTER top-level statements ----
-public sealed record BroadcasterAuth(TwitchAuth Value);
-public sealed record BotAuth(TwitchAuth Value);

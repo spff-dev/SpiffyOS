@@ -9,7 +9,7 @@ namespace SpiffyOS.Core;
 public sealed class EventSubWebSocket : IAsyncDisposable
 {
     private readonly HttpClient _http;
-    private readonly TwitchAuth _auth;   // BOT user token (required for WS EventSub)
+    private readonly TwitchAuth _auth;   // Token user for this socket (BOT or BROADCASTER)
     private readonly string _clientId;
 
     private ClientWebSocket? _ws;
@@ -23,12 +23,15 @@ public sealed class EventSubWebSocket : IAsyncDisposable
     public EventSubWebSocket(HttpClient http, TwitchAuth auth, string clientId, AppTokenProvider _)
     {
         _http = http;
-        _auth = auth;      // must be BOT user token
+        _auth = auth;
         _clientId = clientId;
     }
 
+    // --- events we emit to the app ---
     public event Action<ChatMessage>? ChatMessageReceived;
     public event Action<FollowEvent>? FollowReceived;
+    public event Action<SubscriptionEvent>? SubscriptionReceived;
+    public event Action<SubscriptionMessageEvent>? SubscriptionMessageReceived;
 
     public async Task ConnectAsync(CancellationToken ct)
     {
@@ -41,28 +44,46 @@ public sealed class EventSubWebSocket : IAsyncDisposable
     }
 
     /// <summary>
-    /// For follows (v2), the bot must be a moderator. We use:
-    ///   condition = { broadcaster_user_id: <channel>, moderator_user_id: <bot> }
+    /// Chat + Follows (v2) — this socket should be created with the BOT user token.
     /// </summary>
-    public async Task EnsureSubscriptionsAsync(string broadcasterId, string moderatorId, string userId, CancellationToken ct)
+    public async Task EnsureSubscriptionsBotAsync(string broadcasterId, string moderatorUserId, string botUserId, CancellationToken ct)
     {
-        // Wait up to ~10s for session_welcome to arrive (sets _sessionId)
+        // Wait for session_welcome
         var start = DateTime.UtcNow;
         while (_sessionId is null && (DateTime.UtcNow - start).TotalSeconds < 10)
             await Task.Delay(100, ct);
-
         if (_sessionId is null)
             throw new InvalidOperationException("No EventSub session id (no session_welcome received).");
 
-        // Chat messages (bot identity for classification)
+        // Chat messages (bot identity classification)
         await CreateSub("channel.chat.message", "1",
-            new { broadcaster_user_id = broadcasterId, user_id = userId }, ct);
+            new { broadcaster_user_id = broadcasterId, user_id = botUserId }, ct);
 
-        // Follows (v2) — require moderator id
+        // Follows v2 (requires moderator_user_id matching this token's user)
         await CreateSub("channel.follow", "2",
-            new { broadcaster_user_id = broadcasterId, moderator_user_id = moderatorId }, ct);
+            new { broadcaster_user_id = broadcasterId, moderator_user_id = moderatorUserId }, ct);
+    }
 
-        // We’ll add subs/bits/raids/redemptions later.
+    /// <summary>
+    /// Subs + Resub messages — this socket should be created with the BROADCASTER user token.
+    /// </summary>
+    public async Task EnsureSubscriptionsBroadcasterAsync(string broadcasterId, CancellationToken ct)
+    {
+        var start = DateTime.UtcNow;
+        while (_sessionId is null && (DateTime.UtcNow - start).TotalSeconds < 10)
+            await Task.Delay(100, ct);
+        if (_sessionId is null)
+            throw new InvalidOperationException("No EventSub session id (no session_welcome received).");
+
+        // New subs (does not include resubs)
+        await CreateSub("channel.subscribe", "1",
+            new { broadcaster_user_id = broadcasterId }, ct);
+
+        // Resubscription chat messages
+        await CreateSub("channel.subscription.message", "1",
+            new { broadcaster_user_id = broadcasterId }, ct);
+
+        // (We’ll add bits / raids / redemptions later on this same broadcaster socket.)
     }
 
     private async Task CreateSub(string type, string version, object condition, CancellationToken ct)
@@ -70,15 +91,9 @@ public sealed class EventSubWebSocket : IAsyncDisposable
         await _auth.EnsureValidAsync(ct);
 
         var req = new HttpRequestMessage(HttpMethod.Post, "https://api.twitch.tv/helix/eventsub/subscriptions");
-        _auth.ApplyAuth(req); // USER token (BOT) for WebSocket transport
+        _auth.ApplyAuth(req); // USER token for this socket
 
-        var payload = new
-        {
-            type,
-            version,
-            condition,
-            transport = new { method = "websocket", session_id = _sessionId }
-        };
+        var payload = new { type, version, condition, transport = new { method = "websocket", session_id = _sessionId } };
         req.Content = JsonContent.Create(payload);
 
         using var res = await _http.SendAsync(req, ct);
@@ -104,8 +119,7 @@ public sealed class EventSubWebSocket : IAsyncDisposable
                 {
                     r = await _ws.ReceiveAsync(buf, ct);
                     ms.Write(buf, 0, r.Count);
-                }
-                while (!r.EndOfMessage);
+                } while (!r.EndOfMessage);
 
                 var json = Encoding.UTF8.GetString(ms.ToArray());
 
@@ -129,12 +143,10 @@ public sealed class EventSubWebSocket : IAsyncDisposable
                         {
                             var ev = payload.GetProperty("event");
 
-                            // Text
                             string text = "";
                             try { text = ev.GetProperty("message").GetProperty("text").GetString() ?? ""; }
-                            catch (Exception ex) { Console.WriteLine($"Parse error reading event.message.text: {ex.Message}"); }
+                            catch { }
 
-                            // Message IDs
                             string? msgId = null;
                             try { msgId = ev.GetProperty("message_id").GetString(); } catch { }
                             if (string.IsNullOrEmpty(msgId))
@@ -142,7 +154,6 @@ public sealed class EventSubWebSocket : IAsyncDisposable
                                 try { msgId = ev.GetProperty("message").GetProperty("id").GetString(); } catch { }
                             }
 
-                            // Roles via badges
                             bool isBroadcaster = false, isMod = false, isVip = false, isSub = false;
                             try
                             {
@@ -161,14 +172,11 @@ public sealed class EventSubWebSocket : IAsyncDisposable
                                     }
                                 }
                             }
-                            catch { /* ignore */ }
+                            catch { }
 
                             var broadId = ev.GetProperty("broadcaster_user_id").GetString() ?? "";
                             var chatterId = ev.GetProperty("chatter_user_id").GetString() ?? "";
-
-                            // usernames/logins
-                            string chatterLogin = "";
-                            string chatterName = "";
+                            string chatterLogin = "", chatterName = "";
                             try { chatterLogin = ev.GetProperty("chatter_user_login").GetString() ?? ""; } catch { }
                             try { chatterName = ev.GetProperty("chatter_user_name").GetString() ?? ""; } catch { }
 
@@ -176,12 +184,7 @@ public sealed class EventSubWebSocket : IAsyncDisposable
                                 Console.WriteLine($"Chat msg -> {text}");
 
                             ChatMessageReceived?.Invoke(new ChatMessage(
-                                broadId,
-                                chatterId,
-                                chatterLogin,
-                                chatterName,
-                                text,
-                                msgId,
+                                broadId, chatterId, chatterLogin, chatterName, text, msgId,
                                 isBroadcaster, isMod, isVip, isSub
                             ));
                         }
@@ -195,6 +198,48 @@ public sealed class EventSubWebSocket : IAsyncDisposable
                             try { userName = ev.GetProperty("user_name").GetString() ?? ""; } catch { }
 
                             FollowReceived?.Invoke(new FollowEvent(broadId, userId, userLogin, userName));
+                        }
+                        else if (subType == "channel.subscribe")
+                        {
+                            var ev = payload.GetProperty("event");
+                            var broadId = ev.GetProperty("broadcaster_user_id").GetString() ?? "";
+                            var userId = ev.GetProperty("user_id").GetString() ?? "";
+                            string userLogin = "", userName = "";
+                            try { userLogin = ev.GetProperty("user_login").GetString() ?? ""; } catch { }
+                            try { userName = ev.GetProperty("user_name").GetString() ?? ""; } catch { }
+
+                            bool isGift = false;
+                            string? tier = null;
+                            string? gifterId = null, gifterLogin = null, gifterName = null;
+                            try { isGift = ev.GetProperty("is_gift").GetBoolean(); } catch { }
+                            try { tier = ev.GetProperty("tier").GetString(); } catch { }
+                            try { gifterId = ev.GetProperty("gifter_user_id").GetString(); } catch { }
+                            try { gifterLogin = ev.GetProperty("gifter_user_login").GetString(); } catch { }
+                            try { gifterName = ev.GetProperty("gifter_user_name").GetString(); } catch { }
+
+                            SubscriptionReceived?.Invoke(new SubscriptionEvent(
+                                broadId, userId, userLogin, userName, isGift, tier, gifterId, gifterLogin, gifterName
+                            ));
+                        }
+                        else if (subType == "channel.subscription.message")
+                        {
+                            var ev = payload.GetProperty("event");
+                            var broadId = ev.GetProperty("broadcaster_user_id").GetString() ?? "";
+                            var userId = ev.GetProperty("user_id").GetString() ?? "";
+                            string userLogin = "", userName = "";
+                            try { userLogin = ev.GetProperty("user_login").GetString() ?? ""; } catch { }
+                            try { userName = ev.GetProperty("user_name").GetString() ?? ""; } catch { }
+
+                            int cumulativeMonths = 0, streakMonths = 0;
+                            string? tier = null, message = null;
+                            try { cumulativeMonths = ev.GetProperty("cumulative_months").GetInt32(); } catch { }
+                            try { streakMonths = ev.GetProperty("streak_months").GetInt32(); } catch { }
+                            try { tier = ev.GetProperty("tier").GetString(); } catch { }
+                            try { message = ev.GetProperty("message").GetProperty("text").GetString(); } catch { }
+
+                            SubscriptionMessageReceived?.Invoke(new SubscriptionMessageEvent(
+                                broadId, userId, userLogin, userName, cumulativeMonths, streakMonths, tier, message
+                            ));
                         }
                     }
                 }
@@ -212,19 +257,11 @@ public sealed class EventSubWebSocket : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        // Stop the receive loop first
         try { _rxCts?.Cancel(); } catch { }
-        if (_rxTask is not null)
-        {
-            try { await Task.WhenAny(_rxTask, Task.Delay(500)); } catch { }
-        }
-        _rxCts?.Dispose();
-        _rxCts = null;
-        _rxTask = null;
+        if (_rxTask is not null) { try { await Task.WhenAny(_rxTask, Task.Delay(500)); } catch { } }
+        _rxCts?.Dispose(); _rxCts = null; _rxTask = null;
 
-        // Close the socket only if in a closable state
-        var ws = _ws;
-        _ws = null;
+        var ws = _ws; _ws = null;
         if (ws is null) return;
 
         try
@@ -239,6 +276,7 @@ public sealed class EventSubWebSocket : IAsyncDisposable
         finally { ws.Dispose(); }
     }
 
+    // --- payload types we surface ---
     public record ChatMessage(
         string BroadcasterUserId,
         string ChatterUserId,
@@ -257,5 +295,28 @@ public sealed class EventSubWebSocket : IAsyncDisposable
         string UserId,
         string UserLogin,
         string UserName
+    );
+
+    public record SubscriptionEvent(
+        string BroadcasterUserId,
+        string UserId,
+        string UserLogin,
+        string UserName,
+        bool IsGift,
+        string? Tier,
+        string? GifterUserId,
+        string? GifterUserLogin,
+        string? GifterUserName
+    );
+
+    public record SubscriptionMessageEvent(
+        string BroadcasterUserId,
+        string UserId,
+        string UserLogin,
+        string UserName,
+        int CumulativeMonths,
+        int StreakMonths,
+        string? Tier,
+        string? Message
     );
 }
