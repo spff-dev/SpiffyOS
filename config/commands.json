@@ -153,7 +153,7 @@
       "globalCooldown": 5,
       "userCooldown": 0,
       "data": {
-        "announce_live": "👍 Please consider following the lovely {name} - they are LIVE streaming {game} ➡️ https://www.twitch.tv/{user.name}",
+        "announce_live": "👍 Please consider following the lovely {name} - they are LIVE NOW streaming {game} ➡️ https://www.twitch.tv/{user.name}",
         "announce_offline": "👍 Please consider following the lovely {name} - they were last seen streaming {game} ➡️ https://www.twitch.tv/{user.name}",
         "announce_color": "green"
       }
