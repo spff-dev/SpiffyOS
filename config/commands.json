@@ -145,6 +145,33 @@
       "userUsage": 0
     },
     {
+      "name": "addquote",
+      "type": "dynamic",
+      "permission": "mod",
+      "replyToUser": true,
+      "globalCooldown": 5,
+      "userCooldown": 0,
+      "aliases": []
+    },
+    {
+      "name": "quote",
+      "type": "dynamic",
+      "permission": "everyone",
+      "replyToUser": true,
+      "globalCooldown": 5,
+      "userCooldown": 5,
+      "aliases": []
+    },
+    {
+      "name": "delquote",
+      "type": "dynamic",
+      "permission": "mod",
+      "replyToUser": true,
+      "globalCooldown": 3,
+      "userCooldown": 0,
+      "aliases": []
+    },
+    {
       "name": "so2",
       "type": "dynamic",
       "permission": "mod",

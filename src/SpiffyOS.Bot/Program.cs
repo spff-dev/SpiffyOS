@@ -52,6 +52,11 @@ public sealed class BotService : BackgroundService
         var configDir = Environment.GetEnvironmentVariable("SPIFFYOS_CONFIG") ?? Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "config");
         var tokensDir = Environment.GetEnvironmentVariable("SPIFFYOS_TOKENS") ?? Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "secrets");
         var logsDir = Environment.GetEnvironmentVariable("SPIFFYOS_LOGS") ?? Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "logs");
+        var dataDir = Environment.GetEnvironmentVariable("SPIFFYOS_DATA")
+            ?? Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "data");
+        Directory.CreateDirectory(dataDir);
+        var dbPath = Path.Combine(dataDir, "spiffy.db");
+        var store = new SpiffyOS.Core.Data.DataStore(dbPath);
 
         Directory.CreateDirectory(configDir);
         Directory.CreateDirectory(tokensDir);
@@ -92,7 +97,7 @@ public sealed class BotService : BackgroundService
         var wsBroad = new EventSubWebSocket(http, broadcasterAuth, clientId, appToken, wsLogger);
 
         // Router
-        var router = new SpiffyOS.Core.Commands.CommandRouter(helix, routerLogger, broadcasterId, botUserId, configDir);
+        var router = new SpiffyOS.Core.Commands.CommandRouter(helix, routerLogger, broadcasterId, botUserId, configDir, store);
 
         // Events config + announcer
         var eventsCfg = new EventsConfigProvider(configDir);

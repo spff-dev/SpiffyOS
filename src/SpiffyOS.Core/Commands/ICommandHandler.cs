@@ -6,6 +6,7 @@ public sealed class CommandContext
     public required string BroadcasterId { get; init; }
     public required string BotUserId { get; init; }
     public required EventSubWebSocket.ChatMessage Message { get; init; }
+    public SpiffyOS.Core.Data.DataStore? Store { get; init; }
 }
 
 public interface ICommandHandler
