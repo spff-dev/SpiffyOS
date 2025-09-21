@@ -12,7 +12,7 @@
     }
   },
   "subs": {
-    "enabled": false,
+    "enabled": true,
     "cooldownSeconds": 0,
     "templateNew": "🎉 {user.name} just subscribed at {sub.tier}!",
     "templateGift": "🎁 {gifter.name} gifted a sub to {user.name}!",
@@ -30,7 +30,7 @@
     "template": "🚀 Raid from {raider.name} with {raider.viewers} viewers — welcome in!"
   },
   "redemptions": {
-    "enabled": false,
+    "enabled": true,
     "cooldownSeconds": 0,
     "template": "🟣 {user.name} redeemed “{reward.title}”{reward.input}"
   }
