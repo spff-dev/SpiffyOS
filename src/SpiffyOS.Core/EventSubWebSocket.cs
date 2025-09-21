@@ -49,9 +49,6 @@ public sealed class EventSubWebSocket : IAsyncDisposable
         _rxTask = Task.Run(() => ReceiveLoop(_rxCts.Token));
     }
 
-    /// <summary>
-    /// Chat + Follows (v2) — BOT token.
-    /// </summary>
     public async Task EnsureSubscriptionsBotAsync(string broadcasterId, string moderatorUserId, string botUserId, CancellationToken ct)
     {
         var start = DateTime.UtcNow;
@@ -67,9 +64,6 @@ public sealed class EventSubWebSocket : IAsyncDisposable
             new { broadcaster_user_id = broadcasterId, moderator_user_id = moderatorUserId }, ct);
     }
 
-    /// <summary>
-    /// Subs / Resub messages / Redemptions / Bits / Raids — BROADCASTER token.
-    /// </summary>
     public async Task EnsureSubscriptionsBroadcasterAsync(string broadcasterId, CancellationToken ct)
     {
         var start = DateTime.UtcNow;
@@ -90,7 +84,6 @@ public sealed class EventSubWebSocket : IAsyncDisposable
         await CreateSub("channel.cheer", "1",
             new { broadcaster_user_id = broadcasterId }, ct);
 
-        // NEW: Raids (incoming)
         await CreateSub("channel.raid", "1",
             new { to_broadcaster_user_id = broadcasterId }, ct);
     }
@@ -100,7 +93,7 @@ public sealed class EventSubWebSocket : IAsyncDisposable
         await _auth.EnsureValidAsync(ct);
 
         var req = new HttpRequestMessage(HttpMethod.Post, "https://api.twitch.tv/helix/eventsub/subscriptions");
-        _auth.ApplyAuth(req); // USER token for this socket
+        _auth.ApplyAuth(req);
 
         var payload = new { type, version, condition, transport = new { method = "websocket", session_id = _sessionId } };
         req.Content = JsonContent.Create(payload);
@@ -168,6 +161,9 @@ public sealed class EventSubWebSocket : IAsyncDisposable
                                 try { msgId = ev.GetProperty("message").GetProperty("id").GetString(); } catch { }
                             }
 
+                            string? replyParentId = null;
+                            try { replyParentId = ev.GetProperty("message").GetProperty("reply").GetProperty("parent_message_id").GetString(); } catch { }
+
                             bool isBroadcaster = false, isMod = false, isVip = false, isSub = false;
                             try
                             {
@@ -199,7 +195,8 @@ public sealed class EventSubWebSocket : IAsyncDisposable
 
                             ChatMessageReceived?.Invoke(new ChatMessage(
                                 broadId, chatterId, chatterLogin, chatterName, text, msgId,
-                                isBroadcaster, isMod, isVip, isSub
+                                isBroadcaster, isMod, isVip, isSub,
+                                replyParentId
                             ));
                         }
                         else if (subType == "channel.follow")
@@ -379,7 +376,8 @@ public sealed class EventSubWebSocket : IAsyncDisposable
         bool IsBroadcaster,
         bool IsModerator,
         bool IsVIP,
-        bool IsSubscriber
+        bool IsSubscriber,
+        string? ReplyParentMessageId // NEW
     );
 
     public record FollowEvent(

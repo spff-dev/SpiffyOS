@@ -1,0 +1,18 @@
+{
+  "shoutout": {
+    "enabled": true,
+    "alwaysAnnouncement": true,
+    "announcementColor": "green",
+    "liveTemplate": "Please go and follow {user.display}! They were last seen streaming {game} — https://www.twitch.tv/{user.login}",
+    "offlineTemplate": "Please go and follow {user.display}! Catch them at https://www.twitch.tv/{user.login}"
+  },
+  "cooldowns": {
+    "gameChangeSeconds": 5,
+    "titleChangeSeconds": 5
+  },
+  "sanitization": {
+    "collapseWhitespace": true,
+    "stripControlChars": true,
+    "trim": true
+  }
+}

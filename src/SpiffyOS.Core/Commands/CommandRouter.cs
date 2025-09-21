@@ -10,6 +10,7 @@ public sealed class CommandRouter
     private readonly string _broadcasterId;
     private readonly string _botUserId;
     private readonly string _configPath;
+    private readonly string _configDir;
     private readonly object _lock = new();
 
     private CommandFile _cfg = new();
@@ -27,6 +28,11 @@ public sealed class CommandRouter
     private readonly StaticCommandHandler _static = new();
     private readonly UptimeCommandHandler _uptime = new();
 
+    // NEW: mod tools
+    private readonly ShoutoutCommandHandler _so;
+    private readonly TitleCommandHandler _title;
+    private readonly GameCommandHandler _game;
+
     public CommandRouter(
         SpiffyOS.Core.HelixApi helix,
         ILogger<CommandRouter> log,
@@ -38,9 +44,16 @@ public sealed class CommandRouter
         _log = log;
         _broadcasterId = broadcasterId;
         _botUserId = botUserId;
+
+        _configDir = configDir;
         _configPath = Path.Combine(configDir, "commands.json");
         LoadConfig();
         WatchConfig(configDir);
+
+        // Instantiate mod tools
+        _so = new ShoutoutCommandHandler(_log, _configDir);
+        _title = new TitleCommandHandler(_log, _configDir);
+        _game = new GameCommandHandler(_log, _configDir);
     }
 
     private void LoadConfig()
@@ -159,7 +172,7 @@ public sealed class CommandRouter
 
         await EnsureStreamContext(ct);
 
-        // Cooldowns / usage
+        // Cooldowns / usage (router-level)
         if (!AllowByCooldowns(def, name, msg.ChatterUserId))
         {
             _log.LogInformation("Command '{Name}' throttled by cooldown. User={UserName} ({UserId})",
@@ -181,13 +194,23 @@ public sealed class CommandRouter
         {
             if (def.Name.Equals("uptime", StringComparison.OrdinalIgnoreCase))
                 text = await _uptime.ExecuteAsync(BuildCtx(msg), def, args, ct);
+            else if (def.Name.Equals("so", StringComparison.OrdinalIgnoreCase))
+                text = await _so.ExecuteAsync(BuildCtx(msg), def, args, ct);           // returns null (announcement only)
+            else if (def.Name.Equals("title", StringComparison.OrdinalIgnoreCase))
+                text = await _title.ExecuteAsync(BuildCtx(msg), def, args, ct);        // returns chat line
+            else if (def.Name.Equals("game", StringComparison.OrdinalIgnoreCase))
+                text = await _game.ExecuteAsync(BuildCtx(msg), def, args, ct);         // returns chat line
             else
                 _log.LogDebug("No dynamic handler implemented for '{Name}'", def.Name);
         }
 
         if (!string.IsNullOrWhiteSpace(text))
         {
-            var replyId = def.ReplyToUser ? msg.MessageId : null;
+            // Threaded: prefer parent-of-reply; else reply to command message if ReplyToUser=true
+            var replyId = def.ReplyToUser
+                ? (msg.ReplyParentMessageId ?? msg.MessageId)
+                : null;
+
             await _helix.SendChatMessageWithAppAsync(_broadcasterId, _botUserId, text!, ct, replyId);
             TouchCooldowns(def, name, msg.ChatterUserId);
             TouchUsage(def, name, msg.ChatterUserId);

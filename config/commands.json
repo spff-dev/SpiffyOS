@@ -4,38 +4,70 @@
     {
       "name": "discord",
       "type": "static",
-      "aliases": ["dc", "voicechat"],
+      "text": "Join the Discord → https://discord.gg/yourInvite",
       "permission": "everyone",
+      "aliases": ["dc", "voicechat"],
+      "replyToUser": false,
       "globalCooldown": 5,
       "userCooldown": 10,
       "globalUsage": 0,
-      "userUsage": 0,
-      "replyToUser": false,
-      "data": { "text": "Join the Discord → https://discord.gg/spiff" }
+      "userUsage": 0
     },
     {
       "name": "specs",
       "type": "static",
-      "aliases": [],
+      "text": "Streamer PC specs: CPU 5800X, GPU 3080Ti, RAM 32GB, Mic SM7B + GoXLR.",
       "permission": "everyone",
+      "aliases": [],
+      "replyToUser": false,
       "globalCooldown": 5,
       "userCooldown": 10,
       "globalUsage": 0,
-      "userUsage": 0,
-      "replyToUser": false,
-      "data": { "text": "7800X3D / 64GB / 4090 — ask away" }
+      "userUsage": 0
     },
     {
       "name": "uptime",
       "type": "dynamic",
-      "aliases": [],
       "permission": "everyone",
-      "globalCooldown": 10,
-      "userCooldown": 30,
-      "globalUsage": 0,
-      "userUsage": 0,
+      "aliases": [],
       "replyToUser": true,
-      "data": {}
+      "globalCooldown": 0,
+      "userCooldown": 0,
+      "globalUsage": 0,
+      "userUsage": 0
+    },
+    {
+      "name": "so",
+      "type": "dynamic",
+      "permission": "mods",
+      "aliases": ["shoutout"],
+      "replyToUser": false,
+      "globalCooldown": 0,
+      "userCooldown": 0,
+      "globalUsage": 0,
+      "userUsage": 0
+    },
+    {
+      "name": "title",
+      "type": "dynamic",
+      "permission": "everyone",
+      "aliases": [],
+      "replyToUser": true,
+      "globalCooldown": 0,
+      "userCooldown": 0,
+      "globalUsage": 0,
+      "userUsage": 0
+    },
+    {
+      "name": "game",
+      "type": "dynamic",
+      "permission": "everyone",
+      "aliases": ["category"],
+      "replyToUser": true,
+      "globalCooldown": 0,
+      "userCooldown": 0,
+      "globalUsage": 0,
+      "userUsage": 0
     }
   ]
 }
