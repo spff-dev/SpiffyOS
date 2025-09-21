@@ -1,5 +1,11 @@
 # SpiffyOS (high-level)
 
+![.NET 8](https://img.shields.io/badge/.NET-8-512BD4?style=for-the-badge&logo=dotnet)
+![C#](https://img.shields.io/badge/C%23-11-512BD4?style=for-the-badge&logo=c-sharp&logoColor=white)
+![Twitch](https://img.shields.io/badge/Twitch-API-9146FF?style=for-the-badge&logo=twitch&logoColor=white)
+![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
+![Version](https://img.shields.io/badge/version-v1.0.1-blue?style=for-the-badge)
+
 This repo hosts **my Twitch bot** + a tiny overlay. It’s designed to be simple, config‑first, and safe to deploy on my VPS.
 
 ## What it does
