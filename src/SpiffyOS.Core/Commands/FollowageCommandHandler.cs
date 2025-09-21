@@ -42,24 +42,24 @@ public sealed class FollowageCommandHandler : ICommandHandler
         {
             // Twitch "Get Users" returns created_at; HelixApi.GetUserByLoginAsync should surface it.
             if (!DateTime.TryParse(user.created_at, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var createdUtc))
-                return $"{display}'s account creation date isn't available right now.";
+                return $"❌ {display}'s account creation date isn't available right now.";
 
             var (local, tzSuffix) = ToLocal(createdUtc);
             var ago = HumanDelta(DateTime.UtcNow - createdUtc);
 
             // Example: "SPIFFgg's account was created on 2016-05-03 (8y 4m 12d ago)."
-            return $"{display}'s account was created on {local:yyyy-MM-dd} ({ago} ago).";
+            return $"📅 {display}'s account was created on {local:yyyy-MM-dd} ({ago} ago).";
         }
 
         // Normal followage path
         // Requires moderator privileges; we use the bot's user id (the bot is a moderator on your channel)
         var since = await ctx.Helix.GetFollowSinceAsync(ctx.BroadcasterId, targetId, ctx.BotUserId, ct);
         if (since is null)
-            return $"{display} isn't following.";
+            return $"😢 {display} isn't following.";
 
         var delta = DateTime.UtcNow - since.Value;
         var human = HumanDelta(delta);
-        return $"{display} has been following for {human}.";
+        return $"📅 {display} has been following for {human}.";
     }
 
     private static string NormalizeLogin(string s)
