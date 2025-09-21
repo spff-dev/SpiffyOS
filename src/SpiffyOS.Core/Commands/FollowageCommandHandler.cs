@@ -38,8 +38,8 @@ public sealed class FollowageCommandHandler : ICommandHandler
         var age = FormatAge(since.Value, DateTime.UtcNow);
         var sinceStr = since.Value.ToString("yyyy-MM-dd");
         return canTargetOthers
-            ? $"📏 Followage for {targetLabel}: {age} (since {sinceStr})"
-            : $"📏 You've been following for {age} (since {sinceStr}).";
+            ? $"📅 Followage for {targetLabel}: {age} (since {sinceStr})"
+            : $"📅 You've been following for {age} (since {sinceStr}).";
     }
 
     private static string FormatAge(DateTime sinceUtc, DateTime nowUtc)
