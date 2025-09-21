@@ -6,12 +6,12 @@ namespace SpiffyOS.Core;
 
 /// <summary>
 /// Helix helpers for SpiffyOS.
-/// - Broadcaster user token for read endpoints (e.g., /streams)
-/// - App token for Send Chat Message (/chat/messages)
+/// - Broadcaster user token for read endpoints (e.g., /streams) with EnsureValidAsync before each call
+/// - App token for Send Chat Message (/chat/messages) via AppTokenProvider
 ///
 /// Methods:
 ///   SendChatMessageWithAppAsync(...)
-///   SendChatMessageAsync(...)              // wrapper for compatibility, calls app-token path
+///   SendChatMessageAsync(...)              // wrapper (routes to app-token path)
 ///   IsLiveAsync(...)
 ///   GetUptimeAsync(...)
 ///   GetStreamAsync(...) -> StreamsResponse (with .data[] as callers expect)
@@ -77,6 +77,8 @@ public sealed class HelixApi
     /// <summary>True if the channel is currently live.</summary>
     public async Task<bool> IsLiveAsync(string broadcasterId, CancellationToken ct)
     {
+        await _broadcasterAuth.EnsureValidAsync(ct);
+
         using var req = new HttpRequestMessage(HttpMethod.Get, $"https://api.twitch.tv/helix/streams?user_id={broadcasterId}");
         _broadcasterAuth.ApplyAuth(req);
         req.Headers.Add("Client-Id", _clientId);
@@ -101,6 +103,7 @@ public sealed class HelixApi
         var startedUtc = resp.data[0].started_at;
         if (startedUtc.Kind != DateTimeKind.Utc)
             startedUtc = DateTime.SpecifyKind(startedUtc, DateTimeKind.Utc);
+
         return DateTime.UtcNow - startedUtc;
     }
 
@@ -110,6 +113,8 @@ public sealed class HelixApi
     /// </summary>
     public async Task<StreamsResponse?> GetStreamAsync(string broadcasterId, CancellationToken ct)
     {
+        await _broadcasterAuth.EnsureValidAsync(ct);
+
         using var req = new HttpRequestMessage(HttpMethod.Get, $"https://api.twitch.tv/helix/streams?user_id={broadcasterId}");
         _broadcasterAuth.ApplyAuth(req);
         req.Headers.Add("Client-Id", _clientId);
@@ -142,7 +147,7 @@ public sealed class HelixApi
         public string user_name { get; set; } = "";
         public string game_id { get; set; } = "";
         public string title { get; set; } = "";
-        public DateTime started_at { get; set; } // ISO8601 UTC
+        public DateTime started_at { get; set; } // ISO8601 UTC -> DateTime
     }
 
     public sealed class Pagination
