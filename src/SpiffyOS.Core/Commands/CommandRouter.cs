@@ -240,7 +240,7 @@ public sealed class CommandRouter
         _lastStreamCheck = DateTime.UtcNow;
 
         var r = await _helix.GetStreamAsync(_broadcasterId, ct);
-        var id = r.data.FirstOrDefault()?.id;
+        var id = r?.data?.FirstOrDefault()?.id;
 
         if (!string.Equals(id, _currentStreamId, StringComparison.Ordinal))
         {

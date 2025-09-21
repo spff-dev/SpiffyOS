@@ -6,15 +6,15 @@ namespace SpiffyOS.Core;
 
 /// <summary>
 /// Helix helpers for SpiffyOS.
-/// - Uses Broadcaster user token for read endpoints (e.g., /streams)
-/// - Uses App token for Send Chat Message (/chat/messages)
-/// 
-/// Methods exposed:
+/// - Broadcaster user token for read endpoints (e.g., /streams)
+/// - App token for Send Chat Message (/chat/messages)
+///
+/// Methods:
 ///   SendChatMessageWithAppAsync(...)
 ///   SendChatMessageAsync(...)              // wrapper for compatibility, calls app-token path
 ///   IsLiveAsync(...)
 ///   GetUptimeAsync(...)
-///   GetStreamAsync(...) -> StreamInfo
+///   GetStreamAsync(...) -> StreamsResponse (with .data[] as callers expect)
 /// </summary>
 public sealed class HelixApi
 {
@@ -35,7 +35,7 @@ public sealed class HelixApi
 
     /// <summary>
     /// Send a chat message using the **App Access Token** via Helix Send Chat Message API.
-    /// Requires: the bot user (sender_id) is joined to chat and has user:bot + user:write:chat on the app.
+    /// Requires: the bot user (sender_id) is joined to chat and app has user:bot + user:write:chat.
     /// </summary>
     public async Task SendChatMessageWithAppAsync(
         string broadcasterId,
@@ -62,8 +62,7 @@ public sealed class HelixApi
     }
 
     /// <summary>
-    /// Compatibility wrapper. Historically callers used a "user-token" method.
-    /// We route to the app-token Send Chat Message endpoint to keep behavior consistent.
+    /// Compatibility wrapper. Historically callers used a user-token send; we route to app-token path.
     /// </summary>
     public Task SendChatMessageAsync(
         string broadcasterId,
@@ -95,33 +94,21 @@ public sealed class HelixApi
     /// <summary>Uptime if live; null if offline.</summary>
     public async Task<TimeSpan?> GetUptimeAsync(string broadcasterId, CancellationToken ct)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Get, $"https://api.twitch.tv/helix/streams?user_id={broadcasterId}");
-        _broadcasterAuth.ApplyAuth(req);
-        req.Headers.Add("Client-Id", _clientId);
-
-        using var res = await _http.SendAsync(req, ct);
-        res.EnsureSuccessStatusCode();
-
-        using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-        var root = doc.RootElement;
-        if (!root.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array || data.GetArrayLength() == 0)
+        var resp = await GetStreamAsync(broadcasterId, ct);
+        if (resp is null || resp.data is null || resp.data.Count == 0)
             return null;
 
-        var startedAt = data[0].GetProperty("started_at").GetString();
-        if (DateTime.TryParse(startedAt, out var startedUtc))
-        {
-            if (startedUtc.Kind != DateTimeKind.Utc)
-                startedUtc = DateTime.SpecifyKind(startedUtc, DateTimeKind.Utc);
-            return DateTime.UtcNow - startedUtc;
-        }
-        return null;
+        var startedUtc = resp.data[0].started_at;
+        if (startedUtc.Kind != DateTimeKind.Utc)
+            startedUtc = DateTime.SpecifyKind(startedUtc, DateTimeKind.Utc);
+        return DateTime.UtcNow - startedUtc;
     }
 
     /// <summary>
-    /// Compatibility shim for callers that expect a full stream object.
-    /// Returns the first /streams item (or null if offline).
+    /// Returns the /streams response object with a .data array (shape matches current callers).
+    /// Null if offline or request failed to parse.
     /// </summary>
-    public async Task<StreamInfo?> GetStreamAsync(string broadcasterId, CancellationToken ct)
+    public async Task<StreamsResponse?> GetStreamAsync(string broadcasterId, CancellationToken ct)
     {
         using var req = new HttpRequestMessage(HttpMethod.Get, $"https://api.twitch.tv/helix/streams?user_id={broadcasterId}");
         _broadcasterAuth.ApplyAuth(req);
@@ -130,46 +117,36 @@ public sealed class HelixApi
         using var res = await _http.SendAsync(req, ct);
         res.EnsureSuccessStatusCode();
 
-        using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-        var root = doc.RootElement;
-        if (!root.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array || data.GetArrayLength() == 0)
-            return null;
-
-        var s = data[0];
-
-        string id = TryGetString(s, "id");
-        string userId = TryGetString(s, "user_id");
-        string userLogin = TryGetString(s, "user_login");
-        string userName = TryGetString(s, "user_name");
-        string gameId = TryGetString(s, "game_id");
-        string title = TryGetString(s, "title");
-        DateTime startedAtUtc = DateTime.UtcNow;
-
-        try
+        var json = await res.Content.ReadAsStringAsync(ct);
+        var resp = System.Text.Json.JsonSerializer.Deserialize<StreamsResponse>(json, new JsonSerializerOptions
         {
-            var startedAt = s.GetProperty("started_at").GetString();
-            if (!DateTime.TryParse(startedAt, out startedAtUtc))
-                startedAtUtc = DateTime.UtcNow;
-            else if (startedAtUtc.Kind != DateTimeKind.Utc)
-                startedAtUtc = DateTime.SpecifyKind(startedAtUtc, DateTimeKind.Utc);
-        }
-        catch { }
+            PropertyNameCaseInsensitive = true
+        });
 
-        return new StreamInfo(id, userId, userLogin, userName, gameId, title, startedAtUtc);
+        return resp;
     }
 
-    private static string TryGetString(JsonElement e, string name)
-        => e.TryGetProperty(name, out var v) ? (v.GetString() ?? "") : "";
+    // ---------------- Models (match Helix /streams minimal fields we use) ----------------
 
-    // ---------------- Models ----------------
+    public sealed class StreamsResponse
+    {
+        public List<StreamItem> data { get; set; } = new();
+        public Pagination? pagination { get; set; } // present for API parity; currently unused
+    }
 
-    public sealed record StreamInfo(
-        string Id,
-        string UserId,
-        string UserLogin,
-        string UserName,
-        string GameId,
-        string Title,
-        DateTime StartedAt
-    );
+    public sealed class StreamItem
+    {
+        public string id { get; set; } = "";
+        public string user_id { get; set; } = "";
+        public string user_login { get; set; } = "";
+        public string user_name { get; set; } = "";
+        public string game_id { get; set; } = "";
+        public string title { get; set; } = "";
+        public DateTime started_at { get; set; } // ISO8601 UTC
+    }
+
+    public sealed class Pagination
+    {
+        public string? cursor { get; set; }
+    }
 }
