@@ -19,6 +19,7 @@ public sealed class EventsAnnouncer
     private DateTime _subsNextUtc = DateTime.MinValue;
     private DateTime _redsNextUtc = DateTime.MinValue;
     private DateTime _bitsNextUtc = DateTime.MinValue;
+    private DateTime _raidsNextUtc = DateTime.MinValue;
 
     // follow dedupe: userId -> expiresAt
     private readonly Dictionary<string, DateTime> _followSeen = new();
@@ -192,6 +193,27 @@ public sealed class EventsAnnouncer
 
         await SendAsync(text, ct);
         _log.LogInformation("Bits announced: {User} {Bits} bits (anon={Anon})", who, ev.Bits, ev.IsAnonymous);
+    }
+
+    // ---------- RAIDS ----------
+    public async Task HandleRaidAsync(EventSubWebSocket.RaidEvent ev, CancellationToken ct)
+    {
+        var cfg = _cfgProvider.Snapshot();
+        var r = cfg.Raids;
+        if (!r.Enabled) return;
+
+        var now = DateTime.UtcNow;
+        if (now < _raidsNextUtc) { _log.LogInformation("Raid suppressed by raids cooldown"); return; }
+        if (!CanSend(cfg)) { _log.LogInformation("Raid suppressed by global rate-limit"); return; }
+        _raidsNextUtc = now.AddSeconds(Math.Max(0, r.CooldownSeconds));
+
+        var raider = NameOrLogin(ev.FromBroadcasterUserName, ev.FromBroadcasterUserLogin);
+        var text = r.Template
+            .Replace("{raider.name}", Safe(raider))
+            .Replace("{raider.viewers}", ev.Viewers.ToString());
+
+        await SendAsync(text, ct);
+        _log.LogInformation("Raid announced: {Raider} with {Viewers} viewers", raider, ev.Viewers);
     }
 
     // ---------- helpers ----------

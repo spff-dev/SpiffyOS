@@ -37,6 +37,7 @@ public sealed class EventSubWebSocket : IAsyncDisposable
     public event Action<SubscriptionMessageEvent>? SubscriptionMessageReceived;
     public event Action<RedemptionEvent>? RedemptionReceived;
     public event Action<BitsEvent>? CheerReceived;
+    public event Action<RaidEvent>? RaidReceived;
 
     public async Task ConnectAsync(CancellationToken ct)
     {
@@ -67,7 +68,7 @@ public sealed class EventSubWebSocket : IAsyncDisposable
     }
 
     /// <summary>
-    /// Subs / Resub messages / Redemptions / Bits — BROADCASTER token.
+    /// Subs / Resub messages / Redemptions / Bits / Raids — BROADCASTER token.
     /// </summary>
     public async Task EnsureSubscriptionsBroadcasterAsync(string broadcasterId, CancellationToken ct)
     {
@@ -86,9 +87,12 @@ public sealed class EventSubWebSocket : IAsyncDisposable
         await CreateSub("channel.channel_points_custom_reward_redemption.add", "1",
             new { broadcaster_user_id = broadcasterId }, ct);
 
-        // NEW: Bits (cheers)
         await CreateSub("channel.cheer", "1",
             new { broadcaster_user_id = broadcasterId }, ct);
+
+        // NEW: Raids (incoming)
+        await CreateSub("channel.raid", "1",
+            new { to_broadcaster_user_id = broadcasterId }, ct);
     }
 
     private async Task CreateSub(string type, string version, object condition, CancellationToken ct)
@@ -305,6 +309,30 @@ public sealed class EventSubWebSocket : IAsyncDisposable
                                 broadId, isAnon, userId, userLogin, userName, bits, message
                             ));
                         }
+                        else if (subType == "channel.raid")
+                        {
+                            var ev = payload.GetProperty("event");
+
+                            string fromId = "", fromLogin = "", fromName = "";
+                            string toId = "", toLogin = "", toName = "";
+                            int viewers = 0;
+
+                            try { fromId = ev.GetProperty("from_broadcaster_user_id").GetString() ?? ""; } catch { }
+                            try { fromLogin = ev.GetProperty("from_broadcaster_user_login").GetString() ?? ""; } catch { }
+                            try { fromName = ev.GetProperty("from_broadcaster_user_name").GetString() ?? ""; } catch { }
+
+                            try { toId = ev.GetProperty("to_broadcaster_user_id").GetString() ?? ""; } catch { }
+                            try { toLogin = ev.GetProperty("to_broadcaster_user_login").GetString() ?? ""; } catch { }
+                            try { toName = ev.GetProperty("to_broadcaster_user_name").GetString() ?? ""; } catch { }
+
+                            try { viewers = ev.GetProperty("viewers").GetInt32(); } catch { }
+
+                            RaidReceived?.Invoke(new RaidEvent(
+                                fromId, fromLogin, fromName,
+                                toId, toLogin, toName,
+                                viewers
+                            ));
+                        }
                     }
                 }
                 catch
@@ -405,5 +433,15 @@ public sealed class EventSubWebSocket : IAsyncDisposable
         string? UserName,
         int Bits,
         string? Message
+    );
+
+    public record RaidEvent(
+        string FromBroadcasterUserId,
+        string FromBroadcasterUserLogin,
+        string FromBroadcasterUserName,
+        string ToBroadcasterUserId,
+        string ToBroadcasterUserLogin,
+        string ToBroadcasterUserName,
+        int Viewers
     );
 }
