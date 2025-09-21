@@ -109,7 +109,7 @@ public sealed class EventSubWebSocket : IAsyncDisposable
         {
             var body = await res.Content.ReadAsStringAsync(ct);
             _log.LogWarning("EventSub create FAIL: {Type} v{Version} -> {Status} {Body}", type, version, code, body);
-            res.EnsureSuccessStatusCode();
+            return;
         }
     }
 

@@ -20,12 +20,12 @@
     "templateMessage": "💬 {user.name}: {message}"
   },
   "bits": {
-    "enabled": false,
+    "enabled": true,
     "cooldownSeconds": 0,
     "template": "✨ {user.name} cheered {bits.amount} bits!"
   },
   "raids": {
-    "enabled": false,
+    "enabled": true,
     "cooldownSeconds": 5,
     "template": "🚀 Raid from {raider.name} with {raider.viewers} viewers — welcome in!"
   },
