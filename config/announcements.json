@@ -1,9 +1,24 @@
 {
   "enabled": true,
-  "minIntervalSeconds": 420,
-  "maxPerHour": 6,
+  "onlineOnly": true,
+  "minGapMinutes": 30,
+  "quietHours": null,
+  "activity": { "enabled": false, "noChatMinutes": 10 },
   "messages": [
-    "Enjoying the show? Hit Follow \u2764",
-    "Use !uptime, !discord, !specs"
+    {
+      "text": "Join the Discord → https://discord.gg/yourInvite",
+      "minIntervalMinutes": 45,
+      "weight": 2
+    },
+    {
+      "text": "Prime sub is free if you’ve got Amazon Prime. ♥",
+      "minIntervalMinutes": 60,
+      "weight": 1
+    },
+    {
+      "text": "Check the stream specs here: https://your-site/specs",
+      "minIntervalMinutes": 60,
+      "weight": 1
+    }
   ]
 }
