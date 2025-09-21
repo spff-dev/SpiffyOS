@@ -79,6 +79,16 @@
       "userCooldown": 0,
       "globalUsage": 0,
       "userUsage": 0
+    },
+    {
+      "name": "clip",
+      "type": "dynamic",
+      "permission": "everyone",
+      "replyToUser": true,
+      "globalCooldown": 5,
+      "userCooldown": 0,
+      "globalUsage": 0,
+      "userUsage": 0
     }
   ]
 }

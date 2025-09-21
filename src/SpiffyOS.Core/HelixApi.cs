@@ -115,6 +115,39 @@ public sealed class HelixApi
         public string name { get; init; } = "";
     }
 
+    // Clip handling
+public async Task<string?> CreateClipAsync(string broadcasterId, CancellationToken ct, bool hasDelay = false)
+{
+    // Requires broadcaster user token with clips:edit (your broadcaster token already has it)
+    await _broadcasterAuth.EnsureValidAsync(ct);
+
+    var url = $"https://api.twitch.tv/helix/clips?broadcaster_id={Uri.EscapeDataString(broadcasterId)}&has_delay={(hasDelay ? "true" : "false")}";
+    using var req = new HttpRequestMessage(HttpMethod.Post, url);
+    _broadcasterAuth.ApplyAuth(req); // sets Authorization + Client-Id
+
+    using var res = await _http.SendAsync(req, ct);
+    res.EnsureSuccessStatusCode();
+
+    using var stream = await res.Content.ReadAsStreamAsync(ct);
+    var doc = await System.Text.Json.JsonDocument.ParseAsync(stream, cancellationToken: ct);
+    var root = doc.RootElement;
+
+    try
+    {
+        var data = root.GetProperty("data");
+        if (data.ValueKind == System.Text.Json.JsonValueKind.Array && data.GetArrayLength() > 0)
+        {
+            var first = data[0];
+            var id = first.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+            return string.IsNullOrWhiteSpace(id) ? null : id;
+        }
+    }
+    catch { /* fallthrough */ }
+
+    return null;
+}
+
+
     // ============ chat send ============
     public async Task SendChatMessageWithAppAsync(string broadcasterId, string senderUserId, string text, CancellationToken ct, string? replyParentMessageId = null)
     {
