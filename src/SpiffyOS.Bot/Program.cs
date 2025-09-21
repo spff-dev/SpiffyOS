@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 using Serilog.Events;
 using SpiffyOS.Core;
+using SpiffyOS.Core.Events; // <-- added
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Debug()
@@ -93,19 +94,29 @@ public sealed class BotService : BackgroundService
         // Router
         var router = new SpiffyOS.Core.Commands.CommandRouter(helix, routerLogger, broadcasterId, botUserId, configDir);
 
+        // Events config + announcer
+        var eventsCfg = new EventsConfigProvider(configDir);
+        var announcer = new EventsAnnouncer(
+            helix,
+            _lf.CreateLogger<EventsAnnouncer>(),
+            eventsCfg,
+            broadcasterId,
+            botUserId
+        );
+
         wsBot.ChatMessageReceived += async (m) =>
         {
             try { await router.HandleAsync(m, stoppingToken); }
             catch (Exception ex) { _log.LogError(ex, "Router error"); }
         };
 
-        // Other event handlers are wired elsewhere (EventsAnnouncer etc.)
-        wsBot.FollowReceived += _ => { };
-        wsBroad.SubscriptionReceived += _ => { };
-        wsBroad.SubscriptionMessageReceived += _ => { };
-        wsBroad.RedemptionReceived += _ => { };
-        wsBroad.CheerReceived += _ => { };
-        wsBroad.RaidReceived += _ => { };
+        // Wire announcer to EventSub events
+        wsBot.FollowReceived += ev => _ = announcer.HandleFollowAsync(ev, stoppingToken);
+        wsBroad.SubscriptionReceived += ev => _ = announcer.HandleSubscribeAsync(ev, stoppingToken);
+        wsBroad.SubscriptionMessageReceived += ev => _ = announcer.HandleSubscriptionMessageAsync(ev, stoppingToken);
+        wsBroad.RedemptionReceived += ev => _ = announcer.HandleRedemptionAsync(ev, stoppingToken);
+        wsBroad.CheerReceived += ev => _ = announcer.HandleBitsAsync(ev, stoppingToken);
+        wsBroad.RaidReceived += ev => _ = announcer.HandleRaidAsync(ev, stoppingToken);
 
         await wsBot.ConnectAsync(stoppingToken);
         await wsBroad.ConnectAsync(stoppingToken);
