@@ -6,8 +6,8 @@ namespace SpiffyOS.Core;
 
 /// <summary>
 /// Helix helpers for SpiffyOS.
-/// - Broadcaster user token for read endpoints (e.g., /streams) with EnsureValidAsync before each call
-/// - App token for Send Chat Message (/chat/messages) via AppTokenProvider
+/// - App token for Send Chat Message (/chat/messages)
+/// - App token for read endpoints we use (/streams) to avoid user-token refresh issues
 ///
 /// Methods:
 ///   SendChatMessageWithAppAsync(...)
@@ -19,14 +19,13 @@ namespace SpiffyOS.Core;
 public sealed class HelixApi
 {
     private readonly HttpClient _http;
-    private readonly TwitchAuth _broadcasterAuth;
     private readonly AppTokenProvider _app;
     private readonly string _clientId;
 
-    public HelixApi(HttpClient http, TwitchAuth broadcasterAuth, string clientId, AppTokenProvider app)
+    // We keep a broadcaster auth ctor param out to avoid breaking DI, but we don't use it now.
+    public HelixApi(HttpClient http, TwitchAuth _broadcasterAuth, string clientId, AppTokenProvider app)
     {
         _http = http;
-        _broadcasterAuth = broadcasterAuth;
         _clientId = clientId;
         _app = app;
     }
@@ -72,16 +71,15 @@ public sealed class HelixApi
         string? replyParentMessageId = null)
         => SendChatMessageWithAppAsync(broadcasterId, senderUserId, message, ct, replyParentMessageId);
 
-    // ---------------- Streams / status (Broadcaster token) ----------------
+    // ---------------- Streams / status (App token) ----------------
 
     /// <summary>True if the channel is currently live.</summary>
     public async Task<bool> IsLiveAsync(string broadcasterId, CancellationToken ct)
     {
-        await _broadcasterAuth.EnsureValidAsync(ct);
+        var appToken = await _app.GetAsync(ct);
 
         using var req = new HttpRequestMessage(HttpMethod.Get, $"https://api.twitch.tv/helix/streams?user_id={broadcasterId}");
-        _broadcasterAuth.ApplyAuth(req);
-        req.Headers.Add("Client-Id", _clientId);
+        _app.Apply(req, appToken); // sets Bearer + Client-Id
 
         using var res = await _http.SendAsync(req, ct);
         res.EnsureSuccessStatusCode();
@@ -113,11 +111,10 @@ public sealed class HelixApi
     /// </summary>
     public async Task<StreamsResponse?> GetStreamAsync(string broadcasterId, CancellationToken ct)
     {
-        await _broadcasterAuth.EnsureValidAsync(ct);
+        var appToken = await _app.GetAsync(ct);
 
         using var req = new HttpRequestMessage(HttpMethod.Get, $"https://api.twitch.tv/helix/streams?user_id={broadcasterId}");
-        _broadcasterAuth.ApplyAuth(req);
-        req.Headers.Add("Client-Id", _clientId);
+        _app.Apply(req, appToken); // sets Bearer + Client-Id
 
         using var res = await _http.SendAsync(req, ct);
         res.EnsureSuccessStatusCode();
@@ -136,7 +133,7 @@ public sealed class HelixApi
     public sealed class StreamsResponse
     {
         public List<StreamItem> data { get; set; } = new();
-        public Pagination? pagination { get; set; } // present for API parity; currently unused
+        public Pagination? pagination { get; set; }
     }
 
     public sealed class StreamItem
