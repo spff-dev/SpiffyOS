@@ -4,26 +4,33 @@
     {
       "name": "discord",
       "type": "static",
-      "text": "Join the Discord → https://discord.gg/yourInvite",
       "permission": "everyone",
-      "aliases": ["dc", "voicechat"],
+      "aliases": [
+        "dc",
+        "voicechat"
+      ],
       "replyToUser": false,
       "globalCooldown": 5,
       "userCooldown": 10,
       "globalUsage": 0,
-      "userUsage": 0
+      "userUsage": 0,
+      "data": {
+        "text": "Join the Discord → https://discord.gg/yourInvite"
+      }
     },
     {
       "name": "specs",
       "type": "static",
-      "text": "Streamer PC specs: CPU 5800X, GPU 3080Ti, RAM 32GB, Mic SM7B + GoXLR.",
       "permission": "everyone",
       "aliases": [],
       "replyToUser": false,
       "globalCooldown": 5,
       "userCooldown": 10,
       "globalUsage": 0,
-      "userUsage": 0
+      "userUsage": 0,
+      "data": {
+        "text": "Streamer PC specs: CPU 5800X, GPU 3080Ti, RAM 32GB, Mic SM7B + GoXLR."
+      }
     },
     {
       "name": "uptime",
@@ -40,7 +47,9 @@
       "name": "so",
       "type": "dynamic",
       "permission": "mods",
-      "aliases": ["shoutout"],
+      "aliases": [
+        "shoutout"
+      ],
       "replyToUser": false,
       "globalCooldown": 0,
       "userCooldown": 0,
@@ -62,7 +71,9 @@
       "name": "game",
       "type": "dynamic",
       "permission": "everyone",
-      "aliases": ["category"],
+      "aliases": [
+        "category"
+      ],
       "replyToUser": true,
       "globalCooldown": 0,
       "userCooldown": 0,
