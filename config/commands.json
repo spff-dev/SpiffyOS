@@ -12,7 +12,7 @@
       "globalUsage": 0,
       "userUsage": 0,
       "data": {
-        "text": "💬 Join the Spiffcord! → https://discord.gg/x65rDmMycn"
+        "text": "💬 Join the Spiffcord! ➡️ https://discord.gg/x65rDmMycn"
       }
     },
     {
@@ -26,7 +26,7 @@
       "globalUsage": 0,
       "userUsage": 0,
       "data": {
-        "text": "🔗 Find all my links and things here → https://spiff.gg/"
+        "text": "🔗 Find all my links and things here ➡️ https://spiff.gg/"
       }
     },
     {
@@ -54,7 +54,7 @@
       "globalUsage": 0,
       "userUsage": 0,
       "data": {
-        "text": "🔫 Did you know I run a Rust server? Rusty Horizons is a PVE-focused community server with an allowlist. See https://www.rustyhorizons.uk for details on how to apply!"
+        "text": "🔫 Did you know I run a Rust server? Rusty Horizons is a PVE-focused community server with an allowlist. ➡️ https://www.rustyhorizons.uk for details on how to apply!"
       }
     },
     {
@@ -143,6 +143,20 @@
       "userCooldown": 10,
       "globalUsage": 0,
       "userUsage": 0
+    },
+    {
+      "name": "so2",
+      "type": "dynamic",
+      "permission": "mod",
+      "aliases": ["boost"],
+      "replyToUser": false,
+      "globalCooldown": 5,
+      "userCooldown": 0,
+      "data": {
+        "announce_live": "👍 Please consider following the lovely {name} - they are LIVE streaming {game} ➡️ https://www.twitch.tv/{user.name}",
+        "announce_offline": "👍 Please consider following the lovely {name} - they were last seen streaming {game} ➡️ https://www.twitch.tv/{user.name}",
+        "announce_color": "green"
+      }
     }
   ]
 }

@@ -33,6 +33,7 @@ public sealed class CommandRouter
     private readonly TimeCommandHandler _time = new();
     private readonly XmasCommandHandler _xmas = new();
     private readonly FollowageCommandHandler _followage = new();
+    private readonly SoftShoutCommandHandler _so2 = new();
 
     public CommandRouter(
         SpiffyOS.Core.HelixApi helix,
@@ -221,6 +222,8 @@ public sealed class CommandRouter
                 text = await _xmas.ExecuteAsync(ctx, def, args, ct);
             else if (def.Name.Equals("followage", StringComparison.OrdinalIgnoreCase))
                 text = await _followage.ExecuteAsync(ctx, def, args, ct);
+            else if (def.Name.Equals("so2", StringComparison.OrdinalIgnoreCase))
+                text = await _so2.ExecuteAsync(BuildCtx(msg), def, args, ct);
             else
                 _log.LogDebug("No dynamic handler implemented for '{Name}'", def.Name);
         }

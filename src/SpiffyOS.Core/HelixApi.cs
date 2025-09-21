@@ -61,6 +61,7 @@ public sealed class HelixApi
             public string id { get; set; } = "";
             public string user_id { get; set; } = "";
             public string type { get; set; } = "";
+            public string game_name { get; set; } = "";
             public DateTime started_at { get; set; } // RFC3339
         }
     }
