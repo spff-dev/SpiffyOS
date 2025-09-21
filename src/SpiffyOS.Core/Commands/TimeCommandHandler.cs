@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace SpiffyOS.Core.Commands;
 
 public sealed class TimeCommandHandler : ICommandHandler
@@ -14,10 +16,30 @@ public sealed class TimeCommandHandler : ICommandHandler
         var nowUtc = DateTime.UtcNow;
         var local = tzi is null ? nowUtc : TimeZoneInfo.ConvertTimeFromUtc(nowUtc, tzi);
 
-        // If you want to make the format tweakable later, we can, but keep it simple for now.
-        var label = tzi?.DisplayName ?? (tzId + " (UTC fallback)");
-        var text = $"The time for Spiff is: {local:HH:mm}";
+        // 12-hour with leading zero + lowercase am/pm
+        var time12 = local.ToString("hh:mm tt", CultureInfo.InvariantCulture).ToLowerInvariant();
 
+        // Zone suffix: BST/GMT for Europe/London; otherwise UTC offset fallback
+        string zoneSuffix;
+        if (tzi != null && (
+                string.Equals(tzi.Id, "Europe/London", StringComparison.OrdinalIgnoreCase) ||
+                tzi.DisplayName.Contains("London", StringComparison.OrdinalIgnoreCase)))
+        {
+            zoneSuffix = tzi.IsDaylightSavingTime(local) ? "BST" : "GMT";
+        }
+        else if (tzi != null)
+        {
+            var off = tzi.GetUtcOffset(local);
+            zoneSuffix = off == TimeSpan.Zero
+                ? "UTC"
+                : $"UTC{(off < TimeSpan.Zero ? "-" : "+")}{off:hh\\:mm}";
+        }
+        else
+        {
+            zoneSuffix = "UTC";
+        }
+
+        var text = $"The time for Spiff is: {time12} {zoneSuffix}";
         return Task.FromResult<string?>(text);
     }
 }

@@ -16,6 +16,20 @@
       }
     },
     {
+      "name": "links",
+      "type": "static",
+      "permission": "everyone",
+      "aliases": [],
+      "replyToUser": false,
+      "globalCooldown": 5,
+      "userCooldown": 10,
+      "globalUsage": 0,
+      "userUsage": 0,
+      "data": {
+        "text": "🔗 Find all my links and things here → https://spiff.gg/"
+      }
+    },
+    {
       "name": "specs",
       "type": "static",
       "permission": "everyone",
