@@ -75,7 +75,7 @@ var host = Host.CreateDefaultBuilder(args)
             sp.GetRequiredService<AppTokenProvider>(),
             sp.GetRequiredService<ILogger<EventSubWebSocket>>()
         ));
-        // 1) BROADCASTER socket: subs + resub messages (later bits/raids/redemptions)
+        // 1) BROADCASTER socket: subs + resub messages + redemptions
         services.AddSingleton(sp => new EventSubWebSocket(
             sp.GetRequiredService<HttpClient>(),
             sp.GetRequiredService<BroadcasterAuth>().Value,
@@ -175,6 +175,12 @@ public sealed class BotService : BackgroundService
             {
                 try { await _events.HandleSubscriptionMessageAsync(ev, stoppingToken); }
                 catch (Exception ex) { _log.LogError(ex, "Resub announce error"); }
+            };
+
+            brdSock.RedemptionReceived += async ev =>
+            {
+                try { await _events.HandleRedemptionAsync(ev, stoppingToken); }
+                catch (Exception ex) { _log.LogError(ex, "Redemption announce error"); }
             };
 
             _log.LogInformation("EventSub connected and subscriptions created.");

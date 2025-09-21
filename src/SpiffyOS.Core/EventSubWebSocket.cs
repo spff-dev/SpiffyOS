@@ -35,6 +35,7 @@ public sealed class EventSubWebSocket : IAsyncDisposable
     public event Action<FollowEvent>? FollowReceived;
     public event Action<SubscriptionEvent>? SubscriptionReceived;
     public event Action<SubscriptionMessageEvent>? SubscriptionMessageReceived;
+    public event Action<RedemptionEvent>? RedemptionReceived;
 
     public async Task ConnectAsync(CancellationToken ct)
     {
@@ -65,7 +66,7 @@ public sealed class EventSubWebSocket : IAsyncDisposable
     }
 
     /// <summary>
-    /// Subs + Resub messages — BROADCASTER token.
+    /// Subs / Resub messages / Redemptions — BROADCASTER token.
     /// </summary>
     public async Task EnsureSubscriptionsBroadcasterAsync(string broadcasterId, CancellationToken ct)
     {
@@ -79,6 +80,10 @@ public sealed class EventSubWebSocket : IAsyncDisposable
             new { broadcaster_user_id = broadcasterId }, ct);
 
         await CreateSub("channel.subscription.message", "1",
+            new { broadcaster_user_id = broadcasterId }, ct);
+
+        // NEW: Channel Points redemptions (add events)
+        await CreateSub("channel.channel_points_custom_reward_redemption.add", "1",
             new { broadcaster_user_id = broadcasterId }, ct);
     }
 
@@ -242,6 +247,35 @@ public sealed class EventSubWebSocket : IAsyncDisposable
                                 broadId, userId, userLogin, userName, cumulativeMonths, streakMonths, tier, message
                             ));
                         }
+                        else if (subType == "channel.channel_points_custom_reward_redemption.add")
+                        {
+                            var ev = payload.GetProperty("event");
+                            var broadId = ev.GetProperty("broadcaster_user_id").GetString() ?? "";
+                            var userId = ev.GetProperty("user_id").GetString() ?? "";
+
+                            string userLogin = "", userName = "", status = "", userInput = "";
+                            string? rewardId = null, rewardTitle = null, rewardPrompt = null;
+                            int rewardCost = 0;
+
+                            try { userLogin = ev.GetProperty("user_login").GetString() ?? ""; } catch { }
+                            try { userName = ev.GetProperty("user_name").GetString() ?? ""; } catch { }
+                            try { status = ev.GetProperty("status").GetString() ?? ""; } catch { }
+                            try { userInput = ev.GetProperty("user_input").GetString() ?? ""; } catch { }
+
+                            try
+                            {
+                                var r = ev.GetProperty("reward");
+                                rewardId = r.TryGetProperty("id", out var rid) ? rid.GetString() : null;
+                                rewardTitle = r.TryGetProperty("title", out var rt) ? rt.GetString() : null;
+                                rewardPrompt = r.TryGetProperty("prompt", out var rp) ? rp.GetString() : null;
+                                try { rewardCost = r.GetProperty("cost").GetInt32(); } catch { }
+                            }
+                            catch { }
+
+                            RedemptionReceived?.Invoke(new RedemptionEvent(
+                                broadId, userId, userLogin, userName, status, userInput, rewardId, rewardTitle, rewardPrompt, rewardCost
+                            ));
+                        }
                     }
                 }
                 catch
@@ -319,5 +353,18 @@ public sealed class EventSubWebSocket : IAsyncDisposable
         int StreakMonths,
         string? Tier,
         string? Message
+    );
+
+    public record RedemptionEvent(
+        string BroadcasterUserId,
+        string UserId,
+        string UserLogin,
+        string UserName,
+        string Status,
+        string UserInput,
+        string? RewardId,
+        string? RewardTitle,
+        string? RewardPrompt,
+        int RewardCost
     );
 }

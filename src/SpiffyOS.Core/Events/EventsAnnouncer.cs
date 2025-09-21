@@ -17,6 +17,7 @@ public sealed class EventsAnnouncer
     // per-section cooldowns
     private DateTime _followsNextUtc = DateTime.MinValue;
     private DateTime _subsNextUtc = DateTime.MinValue;
+    private DateTime _redsNextUtc = DateTime.MinValue;
 
     // follow dedupe: userId -> expiresAt
     private readonly Dictionary<string, DateTime> _followSeen = new();
@@ -141,6 +142,36 @@ public sealed class EventsAnnouncer
             who, ev.CumulativeMonths, ev.StreakMonths, ev.Tier ?? "(none)");
     }
 
+    // ---------- REDEMPTIONS ----------
+    public async Task HandleRedemptionAsync(EventSubWebSocket.RedemptionEvent ev, CancellationToken ct)
+    {
+        var cfg = _cfgProvider.Snapshot();
+        var r = cfg.Redemptions;
+        if (!r.Enabled) return;
+
+        // Ignore canceled redemptions; announce unfulfilled/fulfilled
+        if (string.Equals(ev.Status, "canceled", StringComparison.OrdinalIgnoreCase))
+        {
+            _log.LogInformation("Redemption ignored (status=canceled): {Title} by {User}", ev.RewardTitle ?? "(unknown)", NameOrLogin(ev.UserName, ev.UserLogin));
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        if (now < _redsNextUtc) { _log.LogInformation("Redemption suppressed by redemptions cooldown"); return; }
+        if (!CanSend(cfg)) { _log.LogInformation("Redemption suppressed by global rate-limit"); return; }
+        _redsNextUtc = now.AddSeconds(Math.Max(0, r.CooldownSeconds));
+
+        var who = NameOrLogin(ev.UserName, ev.UserLogin);
+        var text = r.Template
+            .Replace("{user.name}", who)
+            .Replace("{reward.title}", Safe(ev.RewardTitle))
+            .Replace("{reward.input}", FormatInput(ev.UserInput));
+
+        await SendAsync(text, ct);
+        _log.LogInformation("Redemption announced: {Title} by {User} (status={Status})",
+            ev.RewardTitle ?? "(unknown)", who, ev.Status);
+    }
+
     // ---------- helpers ----------
     private void ArmBatchTimer(int windowSeconds, CancellationToken ct)
     {
@@ -202,6 +233,9 @@ public sealed class EventsAnnouncer
     private static string NameOrLogin(string? name, string? login)
         => !string.IsNullOrWhiteSpace(name) ? name! :
            (!string.IsNullOrWhiteSpace(login) ? login! : "(someone)");
+
+    private static string FormatInput(string? input)
+        => string.IsNullOrWhiteSpace(input) ? "" : " " + input.Trim();
 }
 
 public static class FollowEventExtensions
