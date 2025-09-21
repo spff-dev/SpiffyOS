@@ -82,7 +82,7 @@ public sealed class EventSubWebSocket : IAsyncDisposable
         await CreateSub("channel.subscription.message", "1",
             new { broadcaster_user_id = broadcasterId }, ct);
 
-        // NEW: Channel Points redemptions (add events)
+        // Channel Points redemptions (add events)
         await CreateSub("channel.channel_points_custom_reward_redemption.add", "1",
             new { broadcaster_user_id = broadcasterId }, ct);
     }
@@ -264,11 +264,11 @@ public sealed class EventSubWebSocket : IAsyncDisposable
 
                             try
                             {
-                                var r = ev.GetProperty("reward");
-                                rewardId = r.TryGetProperty("id", out var rid) ? rid.GetString() : null;
-                                rewardTitle = r.TryGetProperty("title", out var rt) ? rt.GetString() : null;
-                                rewardPrompt = r.TryGetProperty("prompt", out var rp) ? rp.GetString() : null;
-                                try { rewardCost = r.GetProperty("cost").GetInt32(); } catch { }
+                                var rewardEl = ev.GetProperty("reward"); // renamed to avoid shadowing
+                                rewardId = rewardEl.TryGetProperty("id", out var rid) ? rid.GetString() : null;
+                                rewardTitle = rewardEl.TryGetProperty("title", out var rt) ? rt.GetString() : null;
+                                rewardPrompt = rewardEl.TryGetProperty("prompt", out var rp) ? rp.GetString() : null;
+                                try { rewardCost = rewardEl.GetProperty("cost").GetInt32(); } catch { }
                             }
                             catch { }
 
