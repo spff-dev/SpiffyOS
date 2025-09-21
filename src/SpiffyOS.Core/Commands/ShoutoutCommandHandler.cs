@@ -1,83 +1,54 @@
-using Microsoft.Extensions.Logging;
-using SpiffyOS.Core.ModTools;
-
 namespace SpiffyOS.Core.Commands;
 
 public sealed class ShoutoutCommandHandler : ICommandHandler
 {
-    private readonly ILogger _log;
-    private readonly ModToolsConfigLoader _cfg;
-
-    public ShoutoutCommandHandler(ILogger logger, string configDir)
-    {
-        _log = logger;
-        _cfg = ModToolsConfigLoader.ForConfigDir(configDir);
-    }
-
     public async Task<string?> ExecuteAsync(CommandContext ctx, CommandDef def, string args, CancellationToken ct)
     {
-        // must be mod/broadcaster
-        if (!(ctx.Message.IsModerator || ctx.Message.IsBroadcaster))
-            return null;
+        var target = (args ?? "").Trim().TrimStart('@');
+        if (string.IsNullOrEmpty(target)) return null;
 
-        var login = (args ?? "").Trim().TrimStart('@');
-        if (string.IsNullOrWhiteSpace(login)) return null;
+        // Requires mod/broadcaster (router also enforces via config)
+        if (!(ctx.Message.IsModerator || ctx.Message.IsBroadcaster)) return null;
 
-        var user = await ctx.Helix.GetUserByLoginAsync(login, ct);
-        if (user is null) return null;
+        var toUser = await ctx.Helix.GetUserByLoginAsync(target, ct);
+        if (toUser is null) return null;
 
-        // Try shoutout (official API) — failure is OK; we still /announce
+        // Official shoutout using BOT token (bot is moderator)
         try
         {
-            await ctx.Helix.ShoutoutAsync(ctx.BroadcasterId, user.id, ctx.BotUserId, ct);
+            await ctx.Helix.ShoutoutAsync(
+                fromBroadcasterId: ctx.BroadcasterId,
+                toBroadcasterId: toUser.id,
+                moderatorUserId: ctx.BotUserId,
+                ct
+            );
         }
-        catch (Exception ex)
+        catch
         {
-            _log.LogWarning(ex, "Shoutout API failed for {Login} ({Id})", user.login, user.id);
+            // Swallow errors (cooldown, etc.). We’ll still post the chat announcement below.
         }
 
-        // Build announcement
-        var cfg = _cfg.Current;
-        if (!cfg.Shoutout.Enabled) return null;
+        // Build the configurable-style announcement message: live/offline + game
+        bool isLive = await ctx.Helix.IsLiveAsync(toUser.id, ct);
+        var ch = await ctx.Helix.GetChannelInfoAsync(toUser.id, ct);
+        var gameName = ch?.game_name ?? "Just Chatting";
 
-        // Determine live + game
-        string? game = null;
-        bool isLive = false;
-        try
-        {
-            var s = await ctx.Helix.GetStreamAsync(user.id, ct);
-            var item = s?.data?.FirstOrDefault();
-            if (item is not null)
-            {
-                isLive = true;
-                game = string.IsNullOrWhiteSpace(item.game_name) ? null : item.game_name;
-            }
-            else
-            {
-                var ch = await ctx.Helix.GetChannelInfoAsync(user.id, ct);
-                game = string.IsNullOrWhiteSpace(ch?.game_name) ? null : ch!.game_name;
-            }
-        }
-        catch { /* optional */ }
-
-        var template = isLive ? cfg.Shoutout.LiveTemplate : cfg.Shoutout.OfflineTemplate;
-        var text = template
-            .Replace("{user.display}", user.display_name)
-            .Replace("{user.login}", user.login)
-            .Replace("{game}", game ?? "something great");
+        // Default green announcement if not overridden elsewhere
+        var msg = isLive
+            ? $"Please go and follow {toUser.display_name} — they’re LIVE streaming {gameName}! https://www.twitch.tv/{toUser.login}"
+            : $"Please go and follow {toUser.display_name} — last seen streaming {gameName}: https://www.twitch.tv/{toUser.login}";
 
         try
         {
-            await ctx.Helix.SendAnnouncementAsync(ctx.BroadcasterId, ctx.BotUserId, text, cfg.Shoutout.AnnouncementColor, ct);
-            _log.LogInformation("Shoutout announced: target={Login} ({Id}) live={Live} game=\"{Game}\"",
-                user.login, user.id, isLive, game ?? "(none)");
+            await ctx.Helix.SendAnnouncementAsync(ctx.BroadcasterId, ctx.BotUserId, msg, color: "green", ct);
         }
-        catch (Exception ex)
+        catch
         {
-            _log.LogWarning(ex, "Failed to send announcement for shoutout target={Login} ({Id})", user.login, user.id);
+            // keep silent on any errors
         }
 
-        // We don't return a normal chat message; announcement already posted.
+        // No additional message from the command itself (avoid duplicate text)
         return null;
     }
 }
+

@@ -1,72 +1,30 @@
-using Microsoft.Extensions.Logging;
-using SpiffyOS.Core.ModTools;
-using System.Text;
+using System.Text.RegularExpressions;
 
 namespace SpiffyOS.Core.Commands;
 
 public sealed class TitleCommandHandler : ICommandHandler
 {
-    private readonly ILogger _log;
-    private readonly ModToolsConfigLoader _cfg;
-
-    private static DateTime _nextSetAllowed = DateTime.MinValue;
-    private static readonly object _lock = new();
-
-    public TitleCommandHandler(ILogger logger, string configDir)
-    {
-        _log = logger;
-        _cfg = ModToolsConfigLoader.ForConfigDir(configDir);
-    }
-
     public async Task<string?> ExecuteAsync(CommandContext ctx, CommandDef def, string args, CancellationToken ct)
     {
         var trimmed = (args ?? "").Trim();
 
-        // Getter: anyone
+        // No args → show current title
         if (string.IsNullOrEmpty(trimmed))
         {
             var ch = await ctx.Helix.GetChannelInfoAsync(ctx.BroadcasterId, ct);
-            var title = ch?.title?.Trim();
-            return string.IsNullOrEmpty(title) ? "Current title: (unknown)" : $"Current title: {title}";
+            if (ch is null) return null; // silent on failure
+            return $"Current title: {ch.title}";
         }
 
-        // Setter: mod/broadcaster only + cooldown
+        // Mutating form requires mod/broadcaster; the router already enforces perms by config,
+        // but we'll be extra defensive here:
         if (!(ctx.Message.IsModerator || ctx.Message.IsBroadcaster)) return null;
 
-        int cd = Math.Max(0, _cfg.Current.Cooldowns.TitleChangeSeconds);
-        lock (_lock)
-        {
-            if (DateTime.UtcNow < _nextSetAllowed) return null; // silent
-            _nextSetAllowed = DateTime.UtcNow.AddSeconds(cd);
-        }
+        // Basic sanitisation
+        trimmed = Regex.Replace(trimmed, @"\s+", " ").Trim();
+        if (string.IsNullOrEmpty(trimmed)) return null;
 
-        var clean = Sanitize(trimmed, _cfg.Current.Sanitization);
-        if (string.IsNullOrWhiteSpace(clean)) return null;
-
-        var ok = await ctx.Helix.UpdateTitleAsync(ctx.BroadcasterId, clean, ct);
-        if (!ok) return null;
-
-        _log.LogInformation("Title changed by {Login} ({Id}) -> \"{Title}\"",
-            ctx.Message.ChatterUserLogin, ctx.Message.ChatterUserId, clean);
-
-        // Router will thread (replyToUser true) to parent if present
-        return $"Title changed to --> {clean}";
-    }
-
-    private static string Sanitize(string s, ModToolsConfig.SanitizationConfig z)
-    {
-        var t = s;
-        if (z.StripControlChars)
-        {
-            var sb = new StringBuilder(t.Length);
-            foreach (var ch in t) if (!char.IsControl(ch) || ch == ' ') sb.Append(ch);
-            t = sb.ToString();
-        }
-        if (z.CollapseWhitespace)
-        {
-            t = System.Text.RegularExpressions.Regex.Replace(t, @"\s+", " ");
-        }
-        if (z.Trim) t = t.Trim();
-        return t;
+        await ctx.Helix.UpdateTitleAsync(ctx.BroadcasterId, trimmed, ct);
+        return $"Title changed to --> {trimmed}";
     }
 }
