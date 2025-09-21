@@ -34,19 +34,25 @@ public sealed class CommandRouter
     private readonly XmasCommandHandler _xmas = new();
     private readonly FollowageCommandHandler _followage = new();
     private readonly SoftShoutCommandHandler _so2 = new();
+    private readonly SpiffyOS.Core.Data.DataStore _store;
+    private readonly AddQuoteCommandHandler _addQuote = new();
+    private readonly QuoteCommandHandler _quote = new();
+    private readonly DelQuoteCommandHandler _delQuote = new();
 
     public CommandRouter(
         SpiffyOS.Core.HelixApi helix,
         ILogger<CommandRouter> log,
         string broadcasterId,
         string botUserId,
-        string configDir)
+        string configDir,
+        SpiffyOS.Core.Data.DataStore store)
     {
         _helix = helix;
         _log = log;
         _broadcasterId = broadcasterId;
         _botUserId = botUserId;
         _configPath = Path.Combine(configDir, "commands.json");
+        _store = store;
         LoadConfig();
         WatchConfig(configDir);
     }
@@ -223,7 +229,13 @@ public sealed class CommandRouter
             else if (def.Name.Equals("followage", StringComparison.OrdinalIgnoreCase))
                 text = await _followage.ExecuteAsync(ctx, def, args, ct);
             else if (def.Name.Equals("so2", StringComparison.OrdinalIgnoreCase))
-                text = await _so2.ExecuteAsync(BuildCtx(msg), def, args, ct);
+                text = await _so2.ExecuteAsync(ctx, def, args, ct);
+            else if (def.Name.Equals("addquote", StringComparison.OrdinalIgnoreCase))
+                text = await _addQuote.ExecuteAsync(ctx, def, args, ct);
+            else if (def.Name.Equals("quote", StringComparison.OrdinalIgnoreCase))
+                text = await _quote.ExecuteAsync(ctx, def, args, ct);
+            else if (def.Name.Equals("delquote", StringComparison.OrdinalIgnoreCase))
+                text = await _delQuote.ExecuteAsync(ctx, def, args, ct);
             else
                 _log.LogDebug("No dynamic handler implemented for '{Name}'", def.Name);
         }
@@ -260,7 +272,8 @@ public sealed class CommandRouter
         Helix = _helix,
         BroadcasterId = _broadcasterId,
         BotUserId = _botUserId,
-        Message = msg
+        Message = msg,
+        Store = _store
     };
 
     private bool HasPermission(CommandDef def, EventSubWebSocket.ChatMessage msg)
