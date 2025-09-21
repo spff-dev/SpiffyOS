@@ -276,7 +276,32 @@ public sealed class HelixApi
             throw new HttpRequestException($"Shoutout failed: {(int)res.StatusCode} {res.ReasonPhrase} {body}");
         }
     }
+    public async Task<DateTime?> GetFollowSinceAsync(string broadcasterId, string userId, string moderatorId, CancellationToken ct)
+    {
+        // Requires bot to have scope: moderator:read:followers
+        await _botAuth.EnsureValidAsync(ct);
 
+        var url = $"https://api.twitch.tv/helix/channels/followers?broadcaster_id={broadcasterId}&user_id={userId}&moderator_id={moderatorId}";
+        var req = new HttpRequestMessage(HttpMethod.Get, url);
+        _botAuth.ApplyAuth(req);
+
+        using var res = await _http.SendAsync(req, ct);
+        if (!res.IsSuccessStatusCode) return null;
+
+        using var doc = await System.Text.Json.JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+        var root = doc.RootElement;
+        if (!root.TryGetProperty("data", out var data) || data.ValueKind != System.Text.Json.JsonValueKind.Array) return null;
+
+        foreach (var item in data.EnumerateArray())
+        {
+            if (item.TryGetProperty("followed_at", out var fa) && fa.ValueKind == System.Text.Json.JsonValueKind.String)
+            {
+                if (DateTime.TryParse(fa.GetString(), null, System.Globalization.DateTimeStyles.AdjustToUniversal, out var dt))
+                    return dt.ToUniversalTime();
+            }
+        }
+        return null;
+    }
     public async Task SendAnnouncementAsync(string broadcasterId, string moderatorUserId, string message, string color, CancellationToken ct)
     {
         var url = $"https://api.twitch.tv/helix/chat/announcements?broadcaster_id={broadcasterId}&moderator_id={moderatorUserId}";

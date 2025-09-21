@@ -39,7 +39,7 @@ public sealed class TimeCommandHandler : ICommandHandler
             zoneSuffix = "UTC";
         }
 
-        var text = $"The time for Spiff is: {time12} {zoneSuffix}";
+        var text = $"⌚ The time for Spiff is: {time12} {zoneSuffix}";
         return Task.FromResult<string?>(text);
     }
 }

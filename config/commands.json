@@ -132,6 +132,17 @@
       "userCooldown": 0,
       "globalUsage": 0,
       "userUsage": 0
+    },
+    {
+      "name": "followage",
+      "type": "dynamic",
+      "permission": "everyone",
+      "aliases": [],
+      "replyToUser": true,
+      "globalCooldown": 5,
+      "userCooldown": 10,
+      "globalUsage": 0,
+      "userUsage": 0
     }
   ]
 }
