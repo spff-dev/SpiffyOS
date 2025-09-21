@@ -1,81 +1,80 @@
 #!/usr/bin/env bash
+# Requires sudo for systemctl. Run as:  sudo ./deploy.sh
 set -Eeuo pipefail
 
-# --- helpers ---------------------------------------------------------------
-log()   { printf "\033[1;36m[deploy]\033[0m %s\n" "$*"; }
-fail()  { printf "\033[1;31m[deploy:ERR]\033[0m %s\n" "$*" >&2; exit 1; }
+UNIT="spiffybot.service"
+ROOT="/srv/bots/spiffyos"
+PUB_BOT="$ROOT/publish/bot"
+PUB_OVERLAY="$ROOT/publish/overlay"
 
-# --- preflight -------------------------------------------------------------
-cd "$(dirname "$0")"
-ROOT="$(pwd)"
+log(){ echo "[deploy] $*"; }
 
-[[ -d .git ]] || fail "This doesn't look like the repo root: $ROOT"
-[[ -f src/SpiffyOS.Bot/SpiffyOS.Bot.csproj ]] || fail "Missing src/SpiffyOS.Bot project."
-[[ -f src/SpiffyOS.Overlay/SpiffyOS.Overlay.csproj ]] || fail "Missing src/SpiffyOS.Overlay project."
-[[ -f .env ]] || fail "Missing .env in $ROOT"
-[ -d scripts ] && chmod +x scripts/*.sh 2>/dev/null || true
+kill_strays() {
+  local pids
+  pids="$(pgrep -f 'dotnet .*SpiffyOS\.Bot\.dll' || true)"
+  if [[ -n "${pids}" ]]; then
+    log "Killing stray bot processes: ${pids}"
+    kill ${pids} || true
+    sleep 0.5
+    pids="$(pgrep -f 'dotnet .*SpiffyOS\.Bot\.dll' || true)"
+    if [[ -n "${pids}" ]]; then
+      log "Force killing remaining: ${pids}"
+      kill -9 ${pids} || true
+    fi
+  fi
+}
 
+ensure_single_instance() {
+  local count
+  count="$(pgrep -fc 'dotnet .*SpiffyOS\.Bot\.dll' || true)"
+  log "Running bot processes: ${count}"
+  if [[ "${count}" != "1" ]]; then
+    log "ERROR: expected exactly 1 bot process, got ${count}"
+    pgrep -fa 'dotnet .*SpiffyOS\.Bot\.dll' || true
+    exit 1
+  fi
+}
 
-# Load env (SPIFFYOS_* and Twitch__* vars)
-set -a; . "$ROOT/.env"; set +a
-
-: "${SPIFFYOS_CONFIG:?SPIFFYOS_CONFIG not set}"
-: "${SPIFFYOS_TOKENS:?SPIFFYOS_TOKENS not set}"
-: "${SPIFFYOS_LOGS:?SPIFFYOS_LOGS not set}"
-
-BOT_OUT="$ROOT/publish/bot"
-OVR_OUT="$ROOT/publish/overlay"
-
-log "Repo: $(git rev-parse --show-toplevel)"
+log "Repo:   ${ROOT}"
 log "Commit: $(git rev-parse --short HEAD)"
-log "Config: $SPIFFYOS_CONFIG"
-log "Tokens: $SPIFFYOS_TOKENS"
-log "Logs:   $SPIFFYOS_LOGS"
+log "Config: ${ROOT}/config"
+log "Tokens: ${ROOT}/secrets"
+log "Logs:   ${ROOT}/logs"
 
-# --- build/publish ---------------------------------------------------------
+log "Stopping service..."
+systemctl stop "${UNIT}" || true
+
+log "Killing any stray processes..."
+kill_strays
+
 log "Restoring..."
 dotnet restore
 
-log "Publishing Bot → $BOT_OUT"
-dotnet publish src/SpiffyOS.Bot -c Release -o "$BOT_OUT"
+log "Publishing Bot → ${PUB_BOT}"
+dotnet publish src/SpiffyOS.Bot -c Release -o "${PUB_BOT}"
 
-log "Publishing Overlay → $OVR_OUT"
-dotnet publish src/SpiffyOS.Overlay -c Release -o "$OVR_OUT"
+log "Publishing Overlay → ${PUB_OVERLAY}"
+dotnet publish src/SpiffyOS.Overlay -c Release -o "${PUB_OVERLAY}"
 
-# --- restart services ------------------------------------------------------
-log "Restarting services..."
-sudo systemctl daemon-reload || true
-sudo systemctl restart spiffyos-bot
-sudo systemctl restart spiffyos-overlay
+log "Starting service..."
+systemctl daemon-reload || true
+systemctl start "${UNIT}"
 
 sleep 1
-
-BOT_STATUS="$(systemctl is-active spiffyos-bot || true)"
-OVR_STATUS="$(systemctl is-active spiffyos-overlay || true)"
-log "Bot service:     $BOT_STATUS"
-log "Overlay service: $OVR_STATUS"
-
-[[ "$BOT_STATUS" == "active" ]] || fail "spiffyos-bot is not active"
-[[ "$OVR_STATUS" == "active" ]] || fail "spiffyos-overlay is not active"
-
-# --- quick health checks ---------------------------------------------------
-# tail latest bot log
-BOT_LOG="$(ls -1t "$SPIFFYOS_LOGS"/bot-*.log 2>/dev/null | head -1 || true)"
-if [[ -n "$BOT_LOG" ]]; then
-  log "Last 20 lines of $BOT_LOG"
-  tail -n 20 "$BOT_LOG" || true
-else
-  log "No bot log files found yet."
+STATE="$(systemctl is-active "${UNIT}" || true)"
+log "Bot service: ${STATE}"
+if [[ "${STATE}" != "active" ]]; then
+  log "Service failed to start. Recent journal:"
+  journalctl -u "${UNIT}" -n 80 --no-pager -o cat || true
+  exit 1
 fi
 
-# overlay health
-if [[ -n "${SPIFFYOS_OVERLAY_TOKEN:-}" ]]; then
-  OVR_URL="https://spff.dev/overlay/?k=${SPIFFYOS_OVERLAY_TOKEN}"
-  CODE="$(curl -s -o /dev/null -w '%{http_code}' "$OVR_URL" || true)"
-  log "Overlay check GET /overlay/ → $CODE"
-  [[ "$CODE" == "200" ]] || log "Heads-up: expected 200 with token; got $CODE"
-else
-  log "SPIFFYOS_OVERLAY_TOKEN not set; skipping overlay HTTP check."
+ensure_single_instance
+
+# Optional: quick overlay check if you have Nginx wired
+if [[ -n "${OVERLAY_URL:-}" ]]; then
+  log "Overlay check GET ${OVERLAY_URL}"
+  curl -s -o /dev/null -w "[deploy] Overlay HTTP %{http_code}\n" "${OVERLAY_URL}" || true
 fi
 
 log "Deploy complete."
