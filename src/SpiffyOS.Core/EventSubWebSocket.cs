@@ -36,6 +36,7 @@ public sealed class EventSubWebSocket : IAsyncDisposable
     public event Action<SubscriptionEvent>? SubscriptionReceived;
     public event Action<SubscriptionMessageEvent>? SubscriptionMessageReceived;
     public event Action<RedemptionEvent>? RedemptionReceived;
+    public event Action<BitsEvent>? CheerReceived;
 
     public async Task ConnectAsync(CancellationToken ct)
     {
@@ -66,7 +67,7 @@ public sealed class EventSubWebSocket : IAsyncDisposable
     }
 
     /// <summary>
-    /// Subs / Resub messages / Redemptions — BROADCASTER token.
+    /// Subs / Resub messages / Redemptions / Bits — BROADCASTER token.
     /// </summary>
     public async Task EnsureSubscriptionsBroadcasterAsync(string broadcasterId, CancellationToken ct)
     {
@@ -82,8 +83,11 @@ public sealed class EventSubWebSocket : IAsyncDisposable
         await CreateSub("channel.subscription.message", "1",
             new { broadcaster_user_id = broadcasterId }, ct);
 
-        // Channel Points redemptions (add events)
         await CreateSub("channel.channel_points_custom_reward_redemption.add", "1",
+            new { broadcaster_user_id = broadcasterId }, ct);
+
+        // NEW: Bits (cheers)
+        await CreateSub("channel.cheer", "1",
             new { broadcaster_user_id = broadcasterId }, ct);
     }
 
@@ -264,7 +268,7 @@ public sealed class EventSubWebSocket : IAsyncDisposable
 
                             try
                             {
-                                var rewardEl = ev.GetProperty("reward"); // renamed to avoid shadowing
+                                var rewardEl = ev.GetProperty("reward");
                                 rewardId = rewardEl.TryGetProperty("id", out var rid) ? rid.GetString() : null;
                                 rewardTitle = rewardEl.TryGetProperty("title", out var rt) ? rt.GetString() : null;
                                 rewardPrompt = rewardEl.TryGetProperty("prompt", out var rp) ? rp.GetString() : null;
@@ -274,6 +278,31 @@ public sealed class EventSubWebSocket : IAsyncDisposable
 
                             RedemptionReceived?.Invoke(new RedemptionEvent(
                                 broadId, userId, userLogin, userName, status, userInput, rewardId, rewardTitle, rewardPrompt, rewardCost
+                            ));
+                        }
+                        else if (subType == "channel.cheer")
+                        {
+                            var ev = payload.GetProperty("event");
+                            var broadId = ev.GetProperty("broadcaster_user_id").GetString() ?? "";
+
+                            bool isAnon = false;
+                            int bits = 0;
+                            string? message = null;
+
+                            try { isAnon = ev.GetProperty("is_anonymous").GetBoolean(); } catch { }
+                            try { bits = ev.GetProperty("bits").GetInt32(); } catch { }
+                            try { message = ev.GetProperty("message").GetString(); } catch { }
+
+                            string? userId = null, userLogin = null, userName = null;
+                            if (!isAnon)
+                            {
+                                try { userId = ev.GetProperty("user_id").GetString(); } catch { }
+                                try { userLogin = ev.GetProperty("user_login").GetString(); } catch { }
+                                try { userName = ev.GetProperty("user_name").GetString(); } catch { }
+                            }
+
+                            CheerReceived?.Invoke(new BitsEvent(
+                                broadId, isAnon, userId, userLogin, userName, bits, message
                             ));
                         }
                     }
@@ -366,5 +395,15 @@ public sealed class EventSubWebSocket : IAsyncDisposable
         string? RewardTitle,
         string? RewardPrompt,
         int RewardCost
+    );
+
+    public record BitsEvent(
+        string BroadcasterUserId,
+        bool IsAnonymous,
+        string? UserId,
+        string? UserLogin,
+        string? UserName,
+        int Bits,
+        string? Message
     );
 }

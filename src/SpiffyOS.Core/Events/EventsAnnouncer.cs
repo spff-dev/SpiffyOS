@@ -18,6 +18,7 @@ public sealed class EventsAnnouncer
     private DateTime _followsNextUtc = DateTime.MinValue;
     private DateTime _subsNextUtc = DateTime.MinValue;
     private DateTime _redsNextUtc = DateTime.MinValue;
+    private DateTime _bitsNextUtc = DateTime.MinValue;
 
     // follow dedupe: userId -> expiresAt
     private readonly Dictionary<string, DateTime> _followSeen = new();
@@ -149,7 +150,6 @@ public sealed class EventsAnnouncer
         var r = cfg.Redemptions;
         if (!r.Enabled) return;
 
-        // Ignore canceled redemptions; announce unfulfilled/fulfilled
         if (string.Equals(ev.Status, "canceled", StringComparison.OrdinalIgnoreCase))
         {
             _log.LogInformation("Redemption ignored (status=canceled): {Title} by {User}", ev.RewardTitle ?? "(unknown)", NameOrLogin(ev.UserName, ev.UserLogin));
@@ -170,6 +170,28 @@ public sealed class EventsAnnouncer
         await SendAsync(text, ct);
         _log.LogInformation("Redemption announced: {Title} by {User} (status={Status})",
             ev.RewardTitle ?? "(unknown)", who, ev.Status);
+    }
+
+    // ---------- BITS (CHEERS) ----------
+    public async Task HandleBitsAsync(EventSubWebSocket.BitsEvent ev, CancellationToken ct)
+    {
+        var cfg = _cfgProvider.Snapshot();
+        var b = cfg.Bits;
+        if (!b.Enabled) return;
+
+        var now = DateTime.UtcNow;
+        if (now < _bitsNextUtc) { _log.LogInformation("Bits suppressed by bits cooldown"); return; }
+        if (!CanSend(cfg)) { _log.LogInformation("Bits suppressed by global rate-limit"); return; }
+        _bitsNextUtc = now.AddSeconds(Math.Max(0, b.CooldownSeconds));
+
+        var who = ev.IsAnonymous ? "Anonymous" : NameOrLogin(ev.UserName, ev.UserLogin);
+
+        var text = b.Template
+            .Replace("{user.name}", Safe(who))
+            .Replace("{bits.amount}", ev.Bits.ToString());
+
+        await SendAsync(text, ct);
+        _log.LogInformation("Bits announced: {User} {Bits} bits (anon={Anon})", who, ev.Bits, ev.IsAnonymous);
     }
 
     // ---------- helpers ----------
