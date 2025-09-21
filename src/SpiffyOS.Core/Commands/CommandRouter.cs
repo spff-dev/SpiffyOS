@@ -30,6 +30,8 @@ public sealed class CommandRouter
     private readonly TitleCommandHandler _title = new();
     private readonly GameCommandHandler _game = new();
     private readonly ClipCommandHandler _clip = new();
+    private readonly TimeCommandHandler _time = new();
+    private readonly XmasCommandHandler _xmas = new();
 
     public CommandRouter(
         SpiffyOS.Core.HelixApi helix,
@@ -212,6 +214,10 @@ public sealed class CommandRouter
                 text = await _game.ExecuteAsync(ctx, def, args, ct);
             else if (def.Name.Equals("clip", StringComparison.OrdinalIgnoreCase))
                 text = await _clip.ExecuteAsync(ctx, def, args, ct);
+            else if (def.Name.Equals("time", StringComparison.OrdinalIgnoreCase))
+                text = await _time.ExecuteAsync(ctx, def, args, ct);
+            else if (def.Name.Equals("xmas", StringComparison.OrdinalIgnoreCase))
+                text = await _xmas.ExecuteAsync(ctx, def, args, ct);
             else
                 _log.LogDebug("No dynamic handler implemented for '{Name}'", def.Name);
         }

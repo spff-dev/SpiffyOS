@@ -5,14 +5,14 @@
       "name": "discord",
       "type": "static",
       "permission": "everyone",
-      "aliases": ["dc", "voicechat"],
+      "aliases": ["spiffcord", "voicechat"],
       "replyToUser": false,
       "globalCooldown": 5,
       "userCooldown": 10,
       "globalUsage": 0,
       "userUsage": 0,
       "data": {
-        "text": "Join the Discord → https://discord.gg/yourInvite"
+        "text": "Join the Spiffcord! → https://discord.gg/x65rDmMycn"
       }
     },
     {
@@ -21,12 +21,26 @@
       "permission": "everyone",
       "aliases": [],
       "replyToUser": false,
-      "globalCooldown": 5,
+      "globalCooldown": 60,
       "userCooldown": 10,
       "globalUsage": 0,
       "userUsage": 0,
       "data": {
-        "text": "Streamer PC specs: CPU 5800X, GPU 3080Ti, RAM 32GB, Mic SM7B + GoXLR."
+        "text": "💻 Spiff's PC: Gigabyte Z690 AORUS ELITE AX motherboard, Intel i9 12900K CPU, 64Gb DDR5 6000 MT/s RAM, NVIDIA Geforce RTX 4090 GPU"
+      }
+    },
+    {
+      "name": "rust",
+      "type": "static",
+      "permission": "everyone",
+      "aliases": ["rh", "rustyhorizons", "rustserver"],
+      "replyToUser": false,
+      "globalCooldown": 60,
+      "userCooldown": 10,
+      "globalUsage": 0,
+      "userUsage": 0,
+      "data": {
+        "text": "Did you know I run a Rust server? Rusty Horizons is a PVE-focused community server with an allowlist. See https://www.rustyhorizons.uk for details on how to apply!"
       }
     },
     {
@@ -77,6 +91,28 @@
       "name": "clip",
       "type": "dynamic",
       "permission": "everyone",
+      "replyToUser": true,
+      "globalCooldown": 5,
+      "userCooldown": 0,
+      "globalUsage": 0,
+      "userUsage": 0
+    },
+    {
+      "name": "time",
+      "type": "dynamic",
+      "permission": "everyone",
+      "aliases": [],
+      "replyToUser": true,
+      "globalCooldown": 5,
+      "userCooldown": 0,
+      "globalUsage": 0,
+      "userUsage": 0
+    },
+    {
+      "name": "xmas",
+      "type": "dynamic",
+      "permission": "everyone",
+      "aliases": [],
       "replyToUser": true,
       "globalCooldown": 5,
       "userCooldown": 0,
