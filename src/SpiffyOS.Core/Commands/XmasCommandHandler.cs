@@ -18,8 +18,8 @@ public sealed class XmasCommandHandler : ICommandHandler
         var days = (target.Date - nowLocal.Date).Days;
 
         string text = days == 0
-            ? "🎄 It’s Christmas today! 🎁"
-            : $"🎄 {days} day{(days == 1 ? "" : "s")} to Christmas";
+            ? "🎄 It's Christmas today! 🎁"
+            : $"🎄 There are {days} day{(days == 1 ? "" : "s")} to Christmas! 🎅";
 
         return Task.FromResult<string?>(text);
     }

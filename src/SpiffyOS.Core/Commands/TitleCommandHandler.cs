@@ -13,7 +13,7 @@ public sealed class TitleCommandHandler : ICommandHandler
         {
             var ch = await ctx.Helix.GetChannelInfoAsync(ctx.BroadcasterId, ct);
             if (ch is null) return null; // silent on failure
-            return $"Current title: {ch.title}";
+            return $"⚠️ Current title: {ch.title}";
         }
 
         // Mutating form requires mod/broadcaster; the router already enforces perms by config,
@@ -25,6 +25,6 @@ public sealed class TitleCommandHandler : ICommandHandler
         if (string.IsNullOrEmpty(trimmed)) return null;
 
         await ctx.Helix.UpdateTitleAsync(ctx.BroadcasterId, trimmed, ct);
-        return $"Title changed to --> {trimmed}";
+        return $"✅ Title changed to → {trimmed}";
     }
 }

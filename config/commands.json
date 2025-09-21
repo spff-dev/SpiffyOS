@@ -12,14 +12,14 @@
       "globalUsage": 0,
       "userUsage": 0,
       "data": {
-        "text": "Join the Spiffcord! → https://discord.gg/x65rDmMycn"
+        "text": "💬 Join the Spiffcord! → https://discord.gg/x65rDmMycn"
       }
     },
     {
       "name": "specs",
       "type": "static",
       "permission": "everyone",
-      "aliases": [],
+      "aliases": ["pc", "system"],
       "replyToUser": false,
       "globalCooldown": 60,
       "userCooldown": 10,
@@ -40,7 +40,7 @@
       "globalUsage": 0,
       "userUsage": 0,
       "data": {
-        "text": "Did you know I run a Rust server? Rusty Horizons is a PVE-focused community server with an allowlist. See https://www.rustyhorizons.uk for details on how to apply!"
+        "text": "🔫 Did you know I run a Rust server? Rusty Horizons is a PVE-focused community server with an allowlist. See https://www.rustyhorizons.uk for details on how to apply!"
       }
     },
     {

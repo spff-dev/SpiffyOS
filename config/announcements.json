@@ -6,17 +6,17 @@
   "activity": { "enabled": false, "noChatMinutes": 10 },
   "messages": [
     {
-      "text": "Join the Discord → https://discord.gg/yourInvite",
+      "text": "💬 Join the Spiffcord! → https://discord.gg/x65rDmMycn",
       "minIntervalMinutes": 45,
       "weight": 2
     },
     {
-      "text": "Prime sub is free if you’ve got Amazon Prime. ♥",
-      "minIntervalMinutes": 60,
+      "text": "✅ A Prime sub is free if you've already got Amazon Prime!",
+      "minIntervalMinutes": 120,
       "weight": 1
     },
     {
-      "text": "Check the stream specs here: https://your-site/specs",
+      "text": "🥰 If you're enjoying the stream, please consider dropping Spiff a follow!",
       "minIntervalMinutes": 60,
       "weight": 1
     }

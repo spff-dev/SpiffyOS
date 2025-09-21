@@ -16,7 +16,7 @@ public sealed class TimeCommandHandler : ICommandHandler
 
         // If you want to make the format tweakable later, we can, but keep it simple for now.
         var label = tzi?.DisplayName ?? (tzId + " (UTC fallback)");
-        var text = $"Current time ({label}): {local:yyyy-MM-dd HH:mm:ss}";
+        var text = $"The time for Spiff is: {local:HH:mm}";
 
         return Task.FromResult<string?>(text);
     }

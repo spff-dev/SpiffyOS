@@ -6,10 +6,10 @@ public sealed class UptimeCommandHandler : ICommandHandler
     {
         // Uses HelixApi.GetUptimeAsync() which returns the UTC start time or null
         var startedAt = await ctx.Helix.GetUptimeAsync(ctx.BroadcasterId, ct);
-        if (startedAt is null) return "Stream offline";
+        if (startedAt is null) return "❌ Stream is offline";
 
         var delta = DateTime.UtcNow - startedAt.Value; // TimeSpan
         string fmt = $"{(int)delta.TotalHours:D2}:{delta.Minutes:D2}:{delta.Seconds:D2}";
-        return $"Uptime: {fmt}";
+        return $"⌚ Stream uptime: {fmt}";
     }
 }

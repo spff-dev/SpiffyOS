@@ -35,8 +35,8 @@ public sealed class ShoutoutCommandHandler : ICommandHandler
 
         // Default green announcement if not overridden elsewhere
         var msg = isLive
-            ? $"Please go and follow {toUser.display_name} — they’re LIVE streaming {gameName}! https://www.twitch.tv/{toUser.login}"
-            : $"Please go and follow {toUser.display_name} — last seen streaming {gameName}: https://www.twitch.tv/{toUser.login}";
+            ? $"👍 Please consider following the lovely {toUser.display_name} - they're LIVE NOW streaming a bit of {gameName}! https://www.twitch.tv/{toUser.login}"
+            : $"👍 Please consider following the lovely {toUser.display_name} - they were last seen streaming a bit of {gameName}! https://www.twitch.tv/{toUser.login}";
 
         try
         {

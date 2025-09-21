@@ -3,7 +3,7 @@
 
   "Follows": {
     "Enabled": true,
-    "CooldownSeconds": 5,
+    "CooldownSeconds": 0,
     "DedupeWindowSeconds": 15,
     "Template": "❤️ Thanks for the follow, {user.name}!",
     "Batching": {
@@ -15,28 +15,28 @@
 
   "Subs": {
     "Enabled": true,
-    "CooldownSeconds": 3,
+    "CooldownSeconds": 0,
     "TemplateNew": "🎉 {user.name} just subscribed at {sub.tier}!",
     "TemplateGift": "🎁 {gifter.name} gifted a sub to {user.name}!",
-    "TemplateResub": "🔁 {user.name} resubbed ({sub.months} months)!",
+    "TemplateResub": "🔁 {user.name} resubbed for {sub.months} months!",
     "TemplateMessage": "💬 {user.name}: {message}"
   },
 
   "Bits": {
     "Enabled": true,
-    "CooldownSeconds": 2,
-    "Template": "✨ {user.name} cheered {bits.amount} bits!"
+    "CooldownSeconds": 0,
+    "Template": "✨ {user.name} just cheered {bits.amount} bits!"
   },
 
   "Raids": {
     "Enabled": true,
     "CooldownSeconds": 5,
-    "Template": "🚀 Raid from {raider.name} with {raider.viewers} viewers — welcome in!"
+    "Template": "🚀 Incoming raid from {raider.name} with {raider.viewers} viewers - welcome in!"
   },
 
   "Redemptions": {
     "Enabled": true,
-    "CooldownSeconds": 2,
-    "Template": "🟣 {user.name} redeemed “{reward.title}”{reward.input}"
+    "CooldownSeconds": 0,
+    "Template": "🟣 {user.name} just redeemed “{reward.title}”{reward.input}"
   }
 }

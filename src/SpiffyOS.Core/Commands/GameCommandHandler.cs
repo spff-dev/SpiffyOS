@@ -13,7 +13,7 @@ public sealed class GameCommandHandler : ICommandHandler
         {
             var ch = await ctx.Helix.GetChannelInfoAsync(ctx.BroadcasterId, ct);
             if (ch is null) return null;
-            return $"Current category: {ch.game_name}";
+            return $"🎮 Current category: {ch.game_name}";
         }
 
         // Mutating form requires mod/broadcaster (router also enforces by config)
@@ -28,6 +28,6 @@ public sealed class GameCommandHandler : ICommandHandler
         if (game is null) return null; // silent on not found
 
         await ctx.Helix.UpdateGameAsync(ctx.BroadcasterId, game.id, ct);
-        return $"Category changed to --> {game.name}";
+        return $"✅ Category changed to → {game.name}";
     }
 }
