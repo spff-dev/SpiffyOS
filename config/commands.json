@@ -16,6 +16,20 @@
       }
     },
     {
+      "name": "raid",
+      "type": "static",
+      "permission": "mods",
+      "aliases": [""],
+      "replyToUser": false,
+      "globalCooldown": 5,
+      "userCooldown": 10,
+      "globalUsage": 0,
+      "userUsage": 0,
+      "data": {
+        "text": "DinoDance Spiff Raid! GayPride"
+      }
+    },
+    {
       "name": "links",
       "type": "static",
       "permission": "everyone",
@@ -26,7 +40,7 @@
       "globalUsage": 0,
       "userUsage": 0,
       "data": {
-        "text": "🔗 Find all my links and things here ➡️ https://spiff.gg/"
+        "text": "🔗 Find all my links and things here ➡️ https://spiff.gg"
       }
     },
     {
@@ -36,11 +50,11 @@
       "aliases": ["pc", "system"],
       "replyToUser": false,
       "globalCooldown": 60,
-      "userCooldown": 10,
+      "userCooldown": 120,
       "globalUsage": 0,
       "userUsage": 0,
       "data": {
-        "text": "💻 Spiff's PC: Gigabyte Z690 AORUS ELITE AX motherboard, Intel i9 12900K CPU, 64Gb DDR5 6000 MT/s RAM, NVIDIA Geforce RTX 4090 GPU"
+        "text": "💻 Spiff's PC: Gigabyte Z690 AORUS ELITE AX motherboard, Intel i9 12900K CPU, 64Gb DDR5 6000 MT/s RAM, NVIDIA Geforce RTX 4090 GPU, Keychron Q6 Max keyboard, Logitech G703 mouse, ASUS XG27AQDMG 1440p OLED monitor"
       }
     },
     {
