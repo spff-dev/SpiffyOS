@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using SpiffyOS.Core;
 using SpiffyOS.Core.Commands;
 using SpiffyOS.Core.Events;
+using SpiffyOS.Core.Announcements;
 using Serilog;
 
 var configDir = Environment.GetEnvironmentVariable("SPIFFYOS_CONFIG")
@@ -29,6 +30,7 @@ var host = Host.CreateDefaultBuilder(args)
     .UseSerilog()
     .ConfigureAppConfiguration((ctx, cfg) =>
     {
+        // Load JSONs for convenience; Announcements/Events also hot-reload via their providers.
         cfg.AddJsonFile(Path.Combine(configDir, "commands.json"), optional: true, reloadOnChange: true);
         cfg.AddJsonFile(Path.Combine(configDir, "events.json"), optional: true, reloadOnChange: true);
         cfg.AddJsonFile(Path.Combine(configDir, "announcements.json"), optional: true, reloadOnChange: true);
@@ -66,7 +68,7 @@ var host = Host.CreateDefaultBuilder(args)
             sp.GetRequiredService<AppTokenProvider>()
         ));
 
-        // EventSub sockets (order matters when we enumerate later):
+        // EventSub sockets (order matters when enumerated below):
         // 0) BOT socket: chat + follows
         services.AddSingleton(sp => new EventSubWebSocket(
             sp.GetRequiredService<HttpClient>(),
@@ -101,7 +103,15 @@ var host = Host.CreateDefaultBuilder(args)
             cfg["Twitch:BroadcasterId"]!, cfg["Twitch:BotUserId"]!
         ));
 
+        // Timed announcements
+        services.AddSingleton(sp => new AnnouncementsConfigProvider(
+            configDir, sp.GetRequiredService<ILogger<AnnouncementsConfigProvider>>()
+        ));
+        services.AddHostedService<AnnouncementsService>();
+
+        // Bot host service
         services.AddHostedService<BotService>();
+
         services.AddSingleton(new BootDirs(configDir, tokensDir, logsDir));
     })
     .Build();
