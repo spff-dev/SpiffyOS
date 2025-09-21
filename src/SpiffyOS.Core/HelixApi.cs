@@ -28,24 +28,24 @@ public sealed class HelixApi
         switch (which)
         {
             case "app":
-            {
-                var t = await _appToken.GetAsync(ct);
-                req.Headers.Add("Client-Id", _clientId);
-                req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", t);
-                break;
-            }
+                {
+                    var t = await _appToken.GetAsync(ct);
+                    req.Headers.Add("Client-Id", _clientId);
+                    req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", t);
+                    break;
+                }
             case "bot":
-            {
-                await _botAuth.EnsureValidAsync(ct);
-                _botAuth.ApplyAuth(req);
-                break;
-            }
+                {
+                    await _botAuth.EnsureValidAsync(ct);
+                    _botAuth.ApplyAuth(req);
+                    break;
+                }
             case "broadcaster":
-            {
-                await _broadcasterAuth.EnsureValidAsync(ct);
-                _broadcasterAuth.ApplyAuth(req);
-                break;
-            }
+                {
+                    await _broadcasterAuth.EnsureValidAsync(ct);
+                    _broadcasterAuth.ApplyAuth(req);
+                    break;
+                }
         }
         return req;
     }
@@ -116,43 +116,44 @@ public sealed class HelixApi
     }
 
     // Clip handling
-public async Task<string?> CreateClipAsync(string broadcasterId, CancellationToken ct, bool hasDelay = false)
-{
-    // Requires broadcaster user token with clips:edit (your broadcaster token already has it)
-    await _broadcasterAuth.EnsureValidAsync(ct);
-
-    var url = $"https://api.twitch.tv/helix/clips?broadcaster_id={Uri.EscapeDataString(broadcasterId)}&has_delay={(hasDelay ? "true" : "false")}";
-    using var req = new HttpRequestMessage(HttpMethod.Post, url);
-    _broadcasterAuth.ApplyAuth(req); // sets Authorization + Client-Id
-
-    using var res = await _http.SendAsync(req, ct);
-    res.EnsureSuccessStatusCode();
-
-    using var stream = await res.Content.ReadAsStreamAsync(ct);
-    var doc = await System.Text.Json.JsonDocument.ParseAsync(stream, cancellationToken: ct);
-    var root = doc.RootElement;
-
-    try
+    public async Task<string?> CreateClipAsync(string broadcasterId, CancellationToken ct, bool hasDelay = false)
     {
-        var data = root.GetProperty("data");
-        if (data.ValueKind == System.Text.Json.JsonValueKind.Array && data.GetArrayLength() > 0)
-        {
-            var first = data[0];
-            var id = first.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
-            return string.IsNullOrWhiteSpace(id) ? null : id;
-        }
-    }
-    catch { /* fallthrough */ }
+        // Requires broadcaster user token with clips:edit (your broadcaster token already has it)
+        await _broadcasterAuth.EnsureValidAsync(ct);
 
-    return null;
-}
+        var url = $"https://api.twitch.tv/helix/clips?broadcaster_id={Uri.EscapeDataString(broadcasterId)}&has_delay={(hasDelay ? "true" : "false")}";
+        using var req = new HttpRequestMessage(HttpMethod.Post, url);
+        _broadcasterAuth.ApplyAuth(req); // sets Authorization + Client-Id
+
+        using var res = await _http.SendAsync(req, ct);
+        res.EnsureSuccessStatusCode();
+
+        using var stream = await res.Content.ReadAsStreamAsync(ct);
+        var doc = await System.Text.Json.JsonDocument.ParseAsync(stream, cancellationToken: ct);
+        var root = doc.RootElement;
+
+        try
+        {
+            var data = root.GetProperty("data");
+            if (data.ValueKind == System.Text.Json.JsonValueKind.Array && data.GetArrayLength() > 0)
+            {
+                var first = data[0];
+                var id = first.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                return string.IsNullOrWhiteSpace(id) ? null : id;
+            }
+        }
+        catch { /* fallthrough */ }
+
+        return null;
+    }
 
 
     // ============ chat send ============
     public async Task SendChatMessageWithAppAsync(string broadcasterId, string senderUserId, string text, CancellationToken ct, string? replyParentMessageId = null)
     {
         var req = await NewReqAsync(HttpMethod.Post, "https://api.twitch.tv/helix/chat/messages", "app", ct);
-        var body = new Dictionary<string, object?> {
+        var body = new Dictionary<string, object?>
+        {
             ["broadcaster_id"] = broadcasterId,
             ["sender_id"] = senderUserId,
             ["message"] = text

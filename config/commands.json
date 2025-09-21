@@ -5,10 +5,7 @@
       "name": "discord",
       "type": "static",
       "permission": "everyone",
-      "aliases": [
-        "dc",
-        "voicechat"
-      ],
+      "aliases": ["dc", "voicechat"],
       "replyToUser": false,
       "globalCooldown": 5,
       "userCooldown": 10,
@@ -47,9 +44,7 @@
       "name": "so",
       "type": "dynamic",
       "permission": "mods",
-      "aliases": [
-        "shoutout"
-      ],
+      "aliases": ["shoutout"],
       "replyToUser": false,
       "globalCooldown": 0,
       "userCooldown": 0,
@@ -71,9 +66,7 @@
       "name": "game",
       "type": "dynamic",
       "permission": "everyone",
-      "aliases": [
-        "category"
-      ],
+      "aliases": ["category"],
       "replyToUser": true,
       "globalCooldown": 0,
       "userCooldown": 0,

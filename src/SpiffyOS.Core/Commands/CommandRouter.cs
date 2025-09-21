@@ -165,26 +165,26 @@ public sealed class CommandRouter
 
         // Cooldowns / usage
         if (!AllowByCooldowns(def, name, msg.ChatterUserId))
-{
-    // Special: !clip should notify cooldown (threaded if configured)
-    if (name.Equals("clip", StringComparison.OrdinalIgnoreCase))
-    {
-        try
         {
-            var replyId = def.ReplyToUser ? msg.MessageId : null;
-            await _helix.SendChatMessageWithAppAsync(_broadcasterId, _botUserId,
-                "That command is still on cooldown", ct, replyId);
-        }
-        catch (Exception ex)
-        {
-            _log.LogWarning(ex, "Cooldown notify failed for command '{Name}'", name);
-        }
-    }
+            // Special: !clip should notify cooldown (threaded if configured)
+            if (name.Equals("clip", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var replyId = def.ReplyToUser ? msg.MessageId : null;
+                    await _helix.SendChatMessageWithAppAsync(_broadcasterId, _botUserId,
+                        "That command is still on cooldown", ct, replyId);
+                }
+                catch (Exception ex)
+                {
+                    _log.LogWarning(ex, "Cooldown notify failed for command '{Name}'", name);
+                }
+            }
 
-    _log.LogInformation("Command '{Name}' throttled by cooldown. User={UserName} ({UserId})",
-        name, UserNameOrLogin(msg), msg.ChatterUserId);
-    return;
-}
+            _log.LogInformation("Command '{Name}' throttled by cooldown. User={UserName} ({UserId})",
+                name, UserNameOrLogin(msg), msg.ChatterUserId);
+            return;
+        }
         if (!AllowByUsage(def, name, msg.ChatterUserId))
         {
             _log.LogInformation("Command '{Name}' blocked by usage limits. User={UserName} ({UserId})",
@@ -210,7 +210,7 @@ public sealed class CommandRouter
                 text = await _title.ExecuteAsync(ctx, def, args, ct);
             else if (def.Name.Equals("game", StringComparison.OrdinalIgnoreCase))
                 text = await _game.ExecuteAsync(ctx, def, args, ct);
-	    else if (def.Name.Equals("clip", StringComparison.OrdinalIgnoreCase))
+            else if (def.Name.Equals("clip", StringComparison.OrdinalIgnoreCase))
                 text = await _clip.ExecuteAsync(ctx, def, args, ct);
             else
                 _log.LogDebug("No dynamic handler implemented for '{Name}'", def.Name);

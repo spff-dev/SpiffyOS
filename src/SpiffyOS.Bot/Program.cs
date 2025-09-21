@@ -116,31 +116,31 @@ public sealed class BotService : BackgroundService
     _log.LogInformation("EVT follow rx: {User} ({Id})", ev.UserName ?? ev.UserLogin ?? "(unknown)", ev.UserId);
     _ = announcer.HandleFollowAsync(ev, stoppingToken);
 };
-wsBroad.SubscriptionReceived += ev =>
-{
-    _log.LogInformation("EVT sub rx: {User} Gift={Gift} Tier={Tier}", ev.UserName ?? ev.UserLogin ?? "(unknown)", ev.IsGift, ev.Tier ?? "(none)");
-    _ = announcer.HandleSubscribeAsync(ev, stoppingToken);
-};
-wsBroad.SubscriptionMessageReceived += ev =>
-{
-    _log.LogInformation("EVT resub rx: {User} Months={Months}", ev.UserName ?? ev.UserLogin ?? "(unknown)", ev.CumulativeMonths);
-    _ = announcer.HandleSubscriptionMessageAsync(ev, stoppingToken);
-};
-wsBroad.RedemptionReceived += ev =>
-{
-    _log.LogInformation("EVT redemption rx: {Title} by {User} Status={Status}", ev.RewardTitle ?? "(unknown)", ev.UserName ?? ev.UserLogin ?? "(unknown)", ev.Status ?? "");
-    _ = announcer.HandleRedemptionAsync(ev, stoppingToken);
-};
-wsBroad.CheerReceived += ev =>
-{
-    _log.LogInformation("EVT cheer rx: Bits={Bits} Anon={Anon}", ev.Bits, ev.IsAnonymous);
-    _ = announcer.HandleBitsAsync(ev, stoppingToken);
-};
-wsBroad.RaidReceived += ev =>
-{
-    _log.LogInformation("EVT raid rx: {From} -> {To} Viewers={Viewers}", ev.FromBroadcasterUserName ?? ev.FromBroadcasterUserLogin ?? "(unknown)", ev.ToBroadcasterUserName ?? ev.ToBroadcasterUserLogin ?? "(unknown)", ev.Viewers);
-    _ = announcer.HandleRaidAsync(ev, stoppingToken);
-};
+        wsBroad.SubscriptionReceived += ev =>
+        {
+            _log.LogInformation("EVT sub rx: {User} Gift={Gift} Tier={Tier}", ev.UserName ?? ev.UserLogin ?? "(unknown)", ev.IsGift, ev.Tier ?? "(none)");
+            _ = announcer.HandleSubscribeAsync(ev, stoppingToken);
+        };
+        wsBroad.SubscriptionMessageReceived += ev =>
+        {
+            _log.LogInformation("EVT resub rx: {User} Months={Months}", ev.UserName ?? ev.UserLogin ?? "(unknown)", ev.CumulativeMonths);
+            _ = announcer.HandleSubscriptionMessageAsync(ev, stoppingToken);
+        };
+        wsBroad.RedemptionReceived += ev =>
+        {
+            _log.LogInformation("EVT redemption rx: {Title} by {User} Status={Status}", ev.RewardTitle ?? "(unknown)", ev.UserName ?? ev.UserLogin ?? "(unknown)", ev.Status ?? "");
+            _ = announcer.HandleRedemptionAsync(ev, stoppingToken);
+        };
+        wsBroad.CheerReceived += ev =>
+        {
+            _log.LogInformation("EVT cheer rx: Bits={Bits} Anon={Anon}", ev.Bits, ev.IsAnonymous);
+            _ = announcer.HandleBitsAsync(ev, stoppingToken);
+        };
+        wsBroad.RaidReceived += ev =>
+        {
+            _log.LogInformation("EVT raid rx: {From} -> {To} Viewers={Viewers}", ev.FromBroadcasterUserName ?? ev.FromBroadcasterUserLogin ?? "(unknown)", ev.ToBroadcasterUserName ?? ev.ToBroadcasterUserLogin ?? "(unknown)", ev.Viewers);
+            _ = announcer.HandleRaidAsync(ev, stoppingToken);
+        };
 
         await wsBot.ConnectAsync(stoppingToken);
         await wsBroad.ConnectAsync(stoppingToken);
