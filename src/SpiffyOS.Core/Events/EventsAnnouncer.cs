@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using System.Text;
+using System.Linq;
 
 namespace SpiffyOS.Core.Events;
 
@@ -131,7 +131,6 @@ public sealed class EventsAnnouncer
         var message = (ev.Message ?? "").Trim();
         if (!string.IsNullOrEmpty(message))
         {
-            // Rate-limit applies across messages; subs cooldown remains the same window.
             var text2 = s.TemplateMessage
                 .Replace("{user.name}", who)
                 .Replace("{message}", message);
@@ -199,7 +198,7 @@ public sealed class EventsAnnouncer
         foreach (var k in expired) map.Remove(k);
     }
 
-    private static string Safe(string s) => s ?? "";
+    private static string Safe(string? s) => s ?? "";
     private static string NameOrLogin(string? name, string? login)
         => !string.IsNullOrWhiteSpace(name) ? name! :
            (!string.IsNullOrWhiteSpace(login) ? login! : "(someone)");

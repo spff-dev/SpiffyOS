@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
 namespace SpiffyOS.Core;
 
@@ -11,6 +12,7 @@ public sealed class EventSubWebSocket : IAsyncDisposable
     private readonly HttpClient _http;
     private readonly TwitchAuth _auth;   // Token user for this socket (BOT or BROADCASTER)
     private readonly string _clientId;
+    private readonly ILogger<EventSubWebSocket> _log;
 
     private ClientWebSocket? _ws;
     private readonly Uri _endpoint = new("wss://eventsub.wss.twitch.tv/ws");
@@ -20,14 +22,15 @@ public sealed class EventSubWebSocket : IAsyncDisposable
     private Task? _rxTask;
     private CancellationTokenSource? _rxCts;
 
-    public EventSubWebSocket(HttpClient http, TwitchAuth auth, string clientId, AppTokenProvider _)
+    public EventSubWebSocket(HttpClient http, TwitchAuth auth, string clientId, AppTokenProvider _, ILogger<EventSubWebSocket> log)
     {
         _http = http;
         _auth = auth;
         _clientId = clientId;
+        _log = log;
     }
 
-    // --- events we emit to the app ---
+    // events we emit to the app
     public event Action<ChatMessage>? ChatMessageReceived;
     public event Action<FollowEvent>? FollowReceived;
     public event Action<SubscriptionEvent>? SubscriptionReceived;
@@ -44,28 +47,25 @@ public sealed class EventSubWebSocket : IAsyncDisposable
     }
 
     /// <summary>
-    /// Chat + Follows (v2) — this socket should be created with the BOT user token.
+    /// Chat + Follows (v2) — BOT token.
     /// </summary>
     public async Task EnsureSubscriptionsBotAsync(string broadcasterId, string moderatorUserId, string botUserId, CancellationToken ct)
     {
-        // Wait for session_welcome
         var start = DateTime.UtcNow;
         while (_sessionId is null && (DateTime.UtcNow - start).TotalSeconds < 10)
             await Task.Delay(100, ct);
         if (_sessionId is null)
             throw new InvalidOperationException("No EventSub session id (no session_welcome received).");
 
-        // Chat messages (bot identity classification)
         await CreateSub("channel.chat.message", "1",
             new { broadcaster_user_id = broadcasterId, user_id = botUserId }, ct);
 
-        // Follows v2 (requires moderator_user_id matching this token's user)
         await CreateSub("channel.follow", "2",
             new { broadcaster_user_id = broadcasterId, moderator_user_id = moderatorUserId }, ct);
     }
 
     /// <summary>
-    /// Subs + Resub messages — this socket should be created with the BROADCASTER user token.
+    /// Subs + Resub messages — BROADCASTER token.
     /// </summary>
     public async Task EnsureSubscriptionsBroadcasterAsync(string broadcasterId, CancellationToken ct)
     {
@@ -75,15 +75,11 @@ public sealed class EventSubWebSocket : IAsyncDisposable
         if (_sessionId is null)
             throw new InvalidOperationException("No EventSub session id (no session_welcome received).");
 
-        // New subs (does not include resubs)
         await CreateSub("channel.subscribe", "1",
             new { broadcaster_user_id = broadcasterId }, ct);
 
-        // Resubscription chat messages
         await CreateSub("channel.subscription.message", "1",
             new { broadcaster_user_id = broadcasterId }, ct);
-
-        // (We’ll add bits / raids / redemptions later on this same broadcaster socket.)
     }
 
     private async Task CreateSub(string type, string version, object condition, CancellationToken ct)
@@ -97,10 +93,16 @@ public sealed class EventSubWebSocket : IAsyncDisposable
         req.Content = JsonContent.Create(payload);
 
         using var res = await _http.SendAsync(req, ct);
-        if (!res.IsSuccessStatusCode)
+        var code = (int)res.StatusCode;
+
+        if (res.IsSuccessStatusCode)
+        {
+            _log.LogInformation("EventSub create OK: {Type} v{Version} -> {Status}", type, version, code);
+        }
+        else
         {
             var body = await res.Content.ReadAsStringAsync(ct);
-            Console.WriteLine($"EventSub {((int)res.StatusCode)} for {type}: {body}");
+            _log.LogWarning("EventSub create FAIL: {Type} v{Version} -> {Status} {Body}", type, version, code, body);
             res.EnsureSuccessStatusCode();
         }
     }
@@ -144,8 +146,7 @@ public sealed class EventSubWebSocket : IAsyncDisposable
                             var ev = payload.GetProperty("event");
 
                             string text = "";
-                            try { text = ev.GetProperty("message").GetProperty("text").GetString() ?? ""; }
-                            catch { }
+                            try { text = ev.GetProperty("message").GetProperty("text").GetString() ?? ""; } catch { }
 
                             string? msgId = null;
                             try { msgId = ev.GetProperty("message_id").GetString(); } catch { }
@@ -276,7 +277,7 @@ public sealed class EventSubWebSocket : IAsyncDisposable
         finally { ws.Dispose(); }
     }
 
-    // --- payload types we surface ---
+    // payload types we surface
     public record ChatMessage(
         string BroadcasterUserId,
         string ChatterUserId,

@@ -5,7 +5,6 @@ using Microsoft.Extensions.Configuration;
 using SpiffyOS.Core;
 using SpiffyOS.Core.Commands;
 using SpiffyOS.Core.Events;
-using System.Text.Json;
 using Serilog;
 
 var configDir = Environment.GetEnvironmentVariable("SPIFFYOS_CONFIG")
@@ -39,7 +38,7 @@ var host = Host.CreateDefaultBuilder(args)
         var cfg = ctx.Configuration;
         services.AddHttpClient();
 
-        // App token (Send Chat Message + general helix app calls)
+        // App token (Send Chat Message + general Helix app calls)
         services.AddSingleton(sp => new AppTokenProvider(
             sp.GetRequiredService<HttpClient>(),
             cfg["Twitch:ClientId"]!, cfg["Twitch:ClientSecret"]!
@@ -59,7 +58,7 @@ var host = Host.CreateDefaultBuilder(args)
             Path.Combine(tokensDir, "bot.json")
         )));
 
-        // Helix (broadcaster app + app-token for /chat/messages)
+        // Helix (broadcaster auth + app token for /chat/messages)
         services.AddSingleton(sp => new HelixApi(
             sp.GetRequiredService<HttpClient>(),
             sp.GetRequiredService<BroadcasterAuth>().Value,
@@ -67,20 +66,22 @@ var host = Host.CreateDefaultBuilder(args)
             sp.GetRequiredService<AppTokenProvider>()
         ));
 
-        // EventSub sockets:
-        //  - BOT socket: chat + follows
+        // EventSub sockets (order matters when we enumerate later):
+        // 0) BOT socket: chat + follows
         services.AddSingleton(sp => new EventSubWebSocket(
             sp.GetRequiredService<HttpClient>(),
             sp.GetRequiredService<BotAuth>().Value,
             cfg["Twitch:ClientId"]!,
-            sp.GetRequiredService<AppTokenProvider>()
+            sp.GetRequiredService<AppTokenProvider>(),
+            sp.GetRequiredService<ILogger<EventSubWebSocket>>()
         ));
-        //  - BROADCASTER socket: subs + resub messages (and later: bits/raids/redemptions)
+        // 1) BROADCASTER socket: subs + resub messages (later bits/raids/redemptions)
         services.AddSingleton(sp => new EventSubWebSocket(
             sp.GetRequiredService<HttpClient>(),
             sp.GetRequiredService<BroadcasterAuth>().Value,
             cfg["Twitch:ClientId"]!,
-            sp.GetRequiredService<AppTokenProvider>()
+            sp.GetRequiredService<AppTokenProvider>(),
+            sp.GetRequiredService<ILogger<EventSubWebSocket>>()
         ));
 
         // Commands
@@ -101,7 +102,6 @@ var host = Host.CreateDefaultBuilder(args)
         ));
 
         services.AddHostedService<BotService>();
-
         services.AddSingleton(new BootDirs(configDir, tokensDir, logsDir));
     })
     .Build();
